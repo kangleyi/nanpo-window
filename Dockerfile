@@ -2,8 +2,11 @@ FROM node:22-bookworm-slim AS builder
 
 WORKDIR /app
 
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+
 COPY package.json package-lock.json ./
-RUN npm ci --include=optional \
+RUN npm config set registry "${NPM_REGISTRY}" \
+    && npm ci --include=optional \
     && node -e "import('rolldown').then(() => console.log('Rolldown native binding ready'))"
 
 COPY . .

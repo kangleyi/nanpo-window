@@ -4,7 +4,6 @@ node_modules
 .wrangler
 dist
 .git
-.openai
 outputs
 *.zip
 *.tar.gz
