@@ -4,8 +4,9 @@ import Image from 'next/image';
 import { FormEvent, useState } from 'react';
 
 type RouteType = 'drive' | 'rail' | 'bus';
-type AdminTab = 'overview' | 'orders' | 'stay' | 'goods' | 'contact';
+type AdminTab = 'overview' | 'orders' | 'stay' | 'goods' | 'experience' | 'contact';
 type AppMode = 'public' | 'admin' | 'farmer';
+type NearbyPlanId = 'canyon' | 'yuntai' | 'culture';
 
 const routes: Record<RouteType, { title: string; time: string; steps: string[]; note: string }> = {
   drive: { title: '从郑州自驾出发', time: '约 1.5 小时', steps: ['郑云高速 S87', '云台山站下高速', '焦辉路 S306', '青云大道 X006', '大南坡村'], note: '006 县道穿村而过，建议直接导航“大南坡艺术中心”。' },
@@ -17,6 +18,9 @@ const stayCards = [
   { name: '牛大爷的院子', type: '乡土院落 · 示例房源', desc: '老院落、核桃树与山里清晨，适合一家人慢住两晚。', price: '价格待录入', image: '/images/homestay.jpg', beds: '2—4 人' },
   { name: '南坡山居 · 一号院', type: '整院包住 · 示例房源', desc: '灰砖院落保留北方村居尺度，步行可达艺术中心。', price: '价格待录入', image: '/images/village-detail.jpg', beds: '4—6 人' },
   { name: '松风小院', type: '双床客房 · 示例房源', desc: '面向太行山南麓，适合周末、研学与小型团队。', price: '价格待录入', image: '/images/village-pond.jpg', beds: '2 人' },
+  { name: '石榴树下的小院', type: '家庭套房 · 示例房源', desc: '院里保留果树和石桌，适合带孩子体验村庄日常。', price: '价格待录入', image: '/images/walnut-yard.jpg', beds: '3—5 人' },
+  { name: '山里人家 · 二号院', type: '整院包住 · 示例房源', desc: '独立客厅与小厨房，适合朋友结伴或两家人同住。', price: '价格待录入', image: '/images/homestay.jpg', beds: '6—8 人' },
+  { name: '南坡研学客舍', type: '团队客房 · 示例房源', desc: '面向研学与小型团建，可由后台配置餐食与活动套餐。', price: '价格待录入', image: '/images/village-detail.jpg', beds: '8—12 人' },
 ];
 
 const goodsCards = [
@@ -24,21 +28,91 @@ const goodsCards = [
   { name: '南坡山花椒', icon: '椒', season: '农户晒制', desc: '香气清亮，适合家常炖煮。', price: '¥ 19.9 起' },
   { name: '石磨小米', icon: '米', season: '当季谷物', desc: '颗粒饱满，煮粥米香自然。', price: '¥ 16.8 起' },
   { name: '山野百花蜜', icon: '蜜', season: '限量采收', desc: '来自太行山脚的四季花香。', price: '¥ 39.0 起' },
+  { name: '四大怀药山药', icon: '药', season: '冬季采挖', desc: '粉糯细密，适合蒸煮与煲汤。', price: '¥ 36.0 起' },
+  { name: '南坡手作柿饼', icon: '柿', season: '秋晒冬成', desc: '自然晾晒，保留果肉的软糯甜香。', price: '¥ 24.9 起' },
+  { name: '农家手工挂面', icon: '面', season: '日常制作', desc: '慢醒慢晾，适合作为村庄伴手礼。', price: '¥ 18.0 起' },
+  { name: '山地散养土鸡蛋', icon: '蛋', season: '每周上新', desc: '由农户按周汇总，数量以实际上架为准。', price: '¥ 22.0 起' },
 ];
+
+const experienceCards = [
+  { name: '核桃采收体验', type: '农事采摘', season: '8—9 月', duration: '约 2 小时', desc: '跟着农户认树、采收、分选，把劳动过程变成一堂自然课。', price: '¥ 68 / 人起', image: '/images/walnut-yard.jpg', hasVideo: true },
+  { name: '山花椒采摘', type: '季节限定', season: '7—8 月', duration: '约 1.5 小时', desc: '学习辨认成熟花椒、体验手工采摘，并了解晾晒过程。', price: '¥ 48 / 人起', image: '/images/products.jpg', hasVideo: false },
+  { name: '村庄美学导览', type: '文化讲解', season: '全年可约', duration: '约 2 小时', desc: '从老礼堂到艺术中心，听村庄空间更新与乡土生活的故事。', price: '价格待配置', image: '/images/village-detail.jpg', hasVideo: true },
+  { name: '石磨小米体验', type: '手作课堂', season: '全年可约', duration: '约 1 小时', desc: '认识谷物、体验传统石磨，把一袋现磨小米带回家。', price: '¥ 39 / 人起', image: '/images/products.jpg', hasVideo: false },
+  { name: '亲子农耕课堂', type: '亲子研学', season: '春夏秋', duration: '半日', desc: '按节气配置播种、除草或收获任务，适合家庭和小团队。', price: '¥ 98 / 组起', image: '/images/village-pond.jpg', hasVideo: true },
+  { name: '南坡秋兴手作', type: '节气活动', season: '秋季', duration: '约 2 小时', desc: '围绕在地物产开展拓印、编织与村庄市集体验。', price: '以活动公告为准', image: '/images/homestay.jpg', hasVideo: false },
+];
+
+const nearbySpots = [
+  { name: '青龙峡 · 峰林峡', range: '约 20—30 km', time: '驾车约 40—60 分钟', type: '峡谷 · 湖泊', mark: '近', tone: 'moss', desc: '峡谷、瀑溪与高峡平湖，适合清凉徒步和山水摄影。', highlights: ['峡谷瀑溪', '翡翠湖色', '山地体验'], map: 'https://uri.amap.com/search?keyword=青龙峡景区峰林峡&city=焦作&callnative=0' },
+  { name: '圆融无碍禅寺', range: '约 20—35 km', time: '驾车约 45—60 分钟', type: '古寺 · 文化', mark: '寺', tone: 'sand', desc: '太行山前的古寺文化空间，适合与焦作市区安排成轻松半日。', highlights: ['古寺建筑', '山门远眺', '静心漫游'], map: 'https://uri.amap.com/search?keyword=圆融无碍禅寺&city=焦作&callnative=0' },
+  { name: '焦作城市漫游', range: '约 25—35 km', time: '驾车约 50—60 分钟', type: '古街 · 夜游', mark: '城', tone: 'clay', desc: '恩州驿、南水北调天河公园与焦作夜市，适合轻松逛吃。', highlights: ['恩州驿', '天河公园', '夜市烟火'], map: 'https://uri.amap.com/search?keyword=恩州驿&city=焦作&callnative=0' },
+  { name: '焦作影视城', range: '约 30—40 km', time: '驾车约 55—70 分钟', type: '古风 · 亲子', mark: '影', tone: 'ochre', desc: '以古代建筑场景和影视文化为特色，适合亲子拍照与城市一日游。', highlights: ['古风城楼', '影视场景', '亲子打卡'], map: 'https://uri.amap.com/search?keyword=焦作影视城&city=焦作&callnative=0' },
+  { name: '云台山', range: '约 35—45 km', time: '驾车约 60—75 分钟', type: '峡谷 · 飞瀑', mark: '云', tone: 'pine', desc: '红石峡、潭瀑峡与茱萸峰，第一次来焦作的经典山水选择。', highlights: ['红石峡', '潭瀑峡', '茱萸峰'], map: 'https://uri.amap.com/search?keyword=云台山景区&city=焦作&callnative=0' },
+  { name: '陈家沟', range: '约 65—80 km', time: '驾车约 90 分钟', type: '太极 · 非遗', mark: '拳', tone: 'sand', desc: '从太极祖祠到传统拳法体验，适合亲子研学与文化旅行。', highlights: ['太极祖祠', '太极文化园', '拳法体验'], map: 'https://uri.amap.com/search?keyword=陈家沟景区&city=焦作&callnative=0' },
+  { name: '嘉应观', range: '约 70—85 km', time: '驾车约 90—110 分钟', type: '黄河 · 古建', mark: '河', tone: 'ochre', desc: '走近黄河治理历史与清代建筑群，适合与陈家沟串联。', highlights: ['治黄行宫', '清代古建', '黄河文化'], map: 'https://uri.amap.com/search?keyword=嘉应观景区&city=焦作&callnative=0' },
+  { name: '神农山', range: '约 75—95 km', time: '驾车约 100—120 分钟', type: '登山 · 地质', mark: '峰', tone: 'stone', desc: '龙脊长城与白皮松景观，适合体力充足的登山爱好者。', highlights: ['紫金顶', '龙脊长城', '白皮松'], map: 'https://uri.amap.com/search?keyword=神农山景区&city=焦作&callnative=0' },
+  { name: '青天河', range: '约 85—100 km', time: '驾车约 110—130 分钟', type: '游船 · 红叶', mark: '湖', tone: 'blue', desc: '高峡平湖、十里画廊与秋日红叶，适合安排一整天慢慢游览。', highlights: ['高峡平湖', '游船画廊', '秋日红叶'], map: 'https://uri.amap.com/search?keyword=青天河景区&city=焦作&callnative=0' },
+];
+
+const nearbyPlans: Record<NearbyPlanId, { eyebrow: string; name: string; days: string; fit: string; distance: string; summary: string; color: string; stops: { time: string; title: string; detail: string }[]; tips: string[] }> = {
+  canyon: {
+    eyebrow: '轻松半日 · 最近山水', name: '南坡慢游 + 太行双峡', days: '0.5 DAY', fit: '家庭 / 摄影 / 避暑', distance: '单程约 20—30 km', color: 'green',
+    summary: '上午在村里慢慢走，午后去青龙峡或峰林峡二选一，把路程留短，把时间留给山风。',
+    stops: [
+      { time: '09:00', title: '大南坡村', detail: '艺术中心、乡村书店与老村散步' },
+      { time: '12:00', title: '村中午餐', detail: '提前向民宿或村庄服务点预约' },
+      { time: '13:30', title: '青龙峡 / 峰林峡', detail: '根据开放情况与体力二选一游览' },
+      { time: '17:30', title: '返回南坡', detail: '住进山居，留一晚看山间暮色' },
+    ],
+    tips: ['山区弯道较多，建议白天行车', '两景区开放安排可能调整，出发前确认'],
+  },
+  yuntai: {
+    eyebrow: '经典一日 · 山水首选', name: '云台山峡谷一日', days: '1 DAY', fit: '初访 / 山水 / 徒步', distance: '单程约 35—45 km', color: 'blue',
+    summary: '从大南坡出发，把红石峡与潭瀑峡安排在同一天；想登高可用茱萸峰替换一个峡谷。',
+    stops: [
+      { time: '07:30', title: '大南坡出发', detail: '早餐后自驾前往云台山游客中心' },
+      { time: '09:00', title: '红石峡', detail: '峡谷步道较集中，建议错峰进入' },
+      { time: '12:00', title: '岸上服务区', detail: '午餐、补水并确认下午交通' },
+      { time: '13:30', title: '潭瀑峡 / 茱萸峰', detail: '亲水轻徒步或登高观景二选一' },
+      { time: '18:30', title: '返回南坡', detail: '也可住岸上小镇，次日继续深度游' },
+    ],
+    tips: ['景区面积大，不建议一天塞满所有点位', '景区内交通以当日观光车安排为准'],
+  },
+  culture: {
+    eyebrow: '人文两日 · 山河与太极', name: '怀川文化环线', days: '2 DAYS', fit: '亲子 / 研学 / 非遗', distance: '各点均在 100 km 圈层', color: 'orange',
+    summary: '第一天认识南坡与焦作城市，第二天串联陈家沟、嘉应观，在太极和黄河故事里读懂怀川。',
+    stops: [
+      { time: 'D1 上午', title: '大南坡村', detail: '乡村更新、艺术空间与在地午餐' },
+      { time: 'D1 下午', title: '焦作城市漫游', detail: '恩州驿或南水北调天河公园' },
+      { time: 'D1 晚间', title: '焦作市区住宿', detail: '缩短第二天向南出发的路程' },
+      { time: 'D2 上午', title: '陈家沟', detail: '太极祖祠、拳法体验与非遗研学' },
+      { time: 'D2 下午', title: '嘉应观', detail: '黄河治理历史与清代古建群' },
+    ],
+    tips: ['两日线路建议自驾或包车', '研学与讲解项目建议提前预约'],
+  },
+};
 
 function PublicWindow({ onManage, onFarmer }: { onManage: () => void; onFarmer: () => void }) {
   const [routeType, setRouteType] = useState<RouteType>('drive');
   const [toast, setToast] = useState('');
   const [orderItem, setOrderItem] = useState<string | null>(null);
   const [storyItem, setStoryItem] = useState<string | null>(null);
+  const [videoItem, setVideoItem] = useState<(typeof experienceCards)[number] | null>(null);
+  const [stayPage, setStayPage] = useState(1);
+  const [goodsPage, setGoodsPage] = useState(1);
+  const [experiencePage, setExperiencePage] = useState(1);
   const route = routes[routeType];
+  const stayPageSize = 3;
+  const goodsPageSize = 4;
+  const experiencePageSize = 3;
   const notify = (message: string) => { setToast(message); window.setTimeout(() => setToast(''), 2400); };
 
   return (
     <main>
       <header className="site-header">
         <a className="brand" href="#top"><span className="brand-seal">南</span><span><b>南坡之窗</b><small>WINDOW OF NANPO</small></span></a>
-        <nav aria-label="主要导航"><a href="#about">走进南坡</a><a href="#route">行前指南</a><a href="#stay">山居一晚</a><a href="#goods">山野好物</a></nav>
+        <nav aria-label="主要导航"><a href="#about">走进南坡</a><a href="#route">行前指南</a><a href="#nearby">周边游</a><a href="#experience">游玩采摘</a><a href="#stay">山居一晚</a><a href="#goods">山野好物</a></nav>
         <div className="header-actions"><button className="weather farmer-entry" onClick={onFarmer}>农户入口</button><button className="weather" onClick={() => notify('访客服务电话将在后台录入后展示')}>◌ 访客服务</button><button className="manage" onClick={onManage}>内容管理 ↗</button></div>
       </header>
 
@@ -62,7 +136,7 @@ function PublicWindow({ onManage, onFarmer }: { onManage: () => void; onFarmer: 
         <a href="#route"><span className="quick-no">01</span><div><small>HOW TO ARRIVE</small><b>怎么来南坡</b></div><i>↗</i></a>
         <a href="#stay"><span className="quick-no">02</span><div><small>STAY IN VILLAGE</small><b>住进山居院落</b></div><i>↗</i></a>
         <a href="#goods"><span className="quick-no">03</span><div><small>LOCAL HARVEST</small><b>把山野带回家</b></div><i>↗</i></a>
-        <a href="#about"><span className="quick-no">04</span><div><small>VILLAGE STORY</small><b>读懂南坡故事</b></div><i>↗</i></a>
+        <a href="#nearby"><span className="quick-no">04</span><div><small>WITHIN 100 KM</small><b>从南坡游向周边</b></div><i>↗</i></a>
       </section>
 
       <section className="about-section" id="about">
@@ -84,27 +158,85 @@ function PublicWindow({ onManage, onFarmer }: { onManage: () => void; onFarmer: 
         <div className="travel-note"><span>出发提醒</span><p>公交线路、班次和开放时间可能临时调整；节假日建议提前一天确认，并优先选择白天进村。</p><button onClick={() => notify('行前提醒已保存')}>保存提醒</button></div>
       </section>
 
+      <NearbyTravel notify={notify} />
+
+      <section className="experience-section" id="experience">
+        <div className="section-kicker light"><span>04</span><small>PLAY & HARVEST</small></div>
+        <div className="experience-head"><div><span>跟着节气来玩</span><h2>不只看风景，<br/>也亲手参与一场收成。</h2></div><p>采摘、农耕、手作与村庄导览都可由后台持续上架；项目可配置季节、价格、名额、图集和视频。</p></div>
+        <div className="experience-grid">{experienceCards.slice((experiencePage-1)*experiencePageSize,experiencePage*experiencePageSize).map((item,index)=><article key={item.name}><div className="experience-media"><Image src={item.image} alt={item.name} fill sizes="33vw"/>{item.hasVideo?<button onClick={()=>setVideoItem(item)} aria-label={`播放${item.name}视频`}><i>▶</i><span>视频看现场</span></button>:<span className="photo-badge">图集</span>}<small>{item.season}</small></div><div className="experience-info"><span>{item.type} · {item.duration}</span><h3>{item.name}</h3><p>{item.desc}</p><footer><strong>{item.price}</strong><button onClick={()=>notify(`${item.name}已加入咨询清单`)}>咨询预约 →</button></footer></div></article>)}</div>
+        <Pagination page={experiencePage} total={experienceCards.length} pageSize={experiencePageSize} onChange={setExperiencePage} label="游玩采摘项目" />
+        <div className="experience-manage"><div><span>村庄运营方</span><h3>季节变了，项目也可以随时更新。</h3><p>后台可设置开放日期、每日名额、预约电话、封面图与介绍视频。</p></div><button onClick={onManage}>去后台配置项目 →</button></div>
+      </section>
+
       <section className="stay-section" id="stay">
-        <div className="section-kicker"><span>03</span><small>STAY IN NANPO</small></div>
+        <div className="section-kicker"><span>05</span><small>STAY IN NANPO</small></div>
         <div className="section-title-row"><div><span>在村里住一晚</span><h2>推开院门，听见山里的清晨。</h2></div><p>现有公开资料显示村内已建设多套山居民宿。以下房源内容为高保真示例，具体名称、价格与联系方式将在管理后台录入后公开。</p></div>
-        <div className="stay-grid">{stayCards.map((item,index)=><article key={item.name}><div className="stay-image"><Image src={item.image} alt={item.name} fill sizes="33vw"/><span>0{index+1}</span><button onClick={() => notify(`${item.name}的咨询入口待后台录入`)}>收藏 ♡</button></div><div className="stay-info"><small>{item.type}</small><h3>{item.name}</h3><p>{item.desc}</p><div><span>住 {item.beds}</span><strong>{item.price}</strong><button onClick={() => notify('联系方式录入后即可咨询预订')}>了解详情 →</button></div></div></article>)}</div>
+        <div className="stay-grid">{stayCards.slice((stayPage-1)*stayPageSize,stayPage*stayPageSize).map((item,index)=><article key={item.name}><div className="stay-image"><Image src={item.image} alt={item.name} fill sizes="33vw"/><span>{String((stayPage-1)*stayPageSize+index+1).padStart(2,'0')}</span><button onClick={() => notify(`${item.name}的咨询入口待后台录入`)}>收藏 ♡</button></div><div className="stay-info"><small>{item.type}</small><h3>{item.name}</h3><p>{item.desc}</p><div><span>住 {item.beds}</span><strong>{item.price}</strong><button onClick={() => notify('联系方式录入后即可咨询预订')}>了解详情 →</button></div></div></article>)}</div>
+        <Pagination page={stayPage} total={stayCards.length} pageSize={stayPageSize} onChange={setStayPage} label="民宿" />
         <div className="operator-cta"><div><span>你是南坡民宿经营者？</span><h3>把你的院子，也放进这扇窗。</h3></div><button onClick={onManage}>去后台上架房源 →</button></div>
       </section>
 
       <section className="goods-section" id="goods">
-        <div className="goods-intro"><div className="section-kicker light"><span>04</span><small>LOCAL HARVEST</small></div><span>山野好物</span><h2>每一份收成都有<br/>自己的时节。</h2><p>山核桃、山花椒、小米与蜂蜜，是公开旅游资料中推荐的焦作山野物产。具体商品、价格和村民联系方式由后台上架。</p><div className="season"><b>八月</b><span><i style={{width:'72%'}}/>核桃与花椒陆续成熟</span></div></div>
+        <div className="goods-intro"><div className="section-kicker light"><span>06</span><small>LOCAL HARVEST</small></div><span>山野好物</span><h2>每一份收成都有<br/>自己的时节。</h2><p>山核桃、山花椒、小米与蜂蜜，是公开旅游资料中推荐的焦作山野物产。具体商品、价格和村民联系方式由后台上架。</p><div className="season"><b>八月</b><span><i style={{width:'72%'}}/>核桃与花椒陆续成熟</span></div></div>
         <div className="goods-visual"><Image src="/images/products.jpg" alt="大南坡工销社陈列的农产品" fill sizes="35vw"/><span>工销社里的山野收成</span></div>
-        <div className="goods-list">{goodsCards.map((item,index)=><article key={item.name}><span className="goods-index">0{index+1}</span><div className="goods-icon">{item.icon}</div><div><small>{item.season}</small><h3>{item.name}</h3><p>{item.desc}</p></div><strong>{item.price}</strong><button className="trace-button" onClick={() => setStoryItem(item.name)}>看过程</button><button onClick={() => setOrderItem(item.name)}>购买</button></article>)}</div>
+        <div className="goods-list">{goodsCards.slice((goodsPage-1)*goodsPageSize,goodsPage*goodsPageSize).map((item,index)=><article key={item.name}><span className="goods-index">{String((goodsPage-1)*goodsPageSize+index+1).padStart(2,'0')}</span><div className="goods-icon">{item.icon}</div><div><small>{item.season}</small><h3>{item.name}</h3><p>{item.desc}</p></div><strong>{item.price}</strong><button className="trace-button" onClick={() => setStoryItem(item.name)}>看过程</button><button onClick={() => setOrderItem(item.name)}>购买</button></article>)}<Pagination page={goodsPage} total={goodsCards.length} pageSize={goodsPageSize} onChange={setGoodsPage} label="农产品" dark /></div>
       </section>
 
       <section className="day-trip"><div className="day-photo"><Image src="/images/village-pond.jpg" alt="大南坡村院落生活" fill sizes="40vw"/><span>ONE DAY IN NANPO</span></div><div className="day-copy"><span>一日南坡建议</span><h2>不赶路，去感受。</h2><div className="timeline"><div><b>09:30</b><p><strong>抵达大南坡</strong><small>从艺术中心开始认识村庄</small></p></div><div><b>11:00</b><p><strong>方所乡村文化</strong><small>在老戏台改成的书店慢慢读</small></p></div><div><b>13:30</b><p><strong>老村散步</strong><small>沿灰砖院落与古树寻找乡土日常</small></p></div><div><b>16:00</b><p><strong>碧山工销社</strong><small>挑一份山野物产带回家</small></p></div></div><button onClick={() => notify('一日游路线已保存')}>收藏这条路线 →</button></div></section>
 
-      <footer className="site-footer"><div className="footer-brand"><span className="brand-seal">南</span><h2>南坡之窗</h2><p>太行山下，一座会生长的村庄。</p></div><div><small>来南坡</small><a href="#route">出行路线</a><a href="#stay">民宿山居</a><a href="#goods">乡野好物</a></div><div><small>认识南坡</small><a href="#about">村庄故事</a><a href="#about">文化空间</a><button onClick={onManage}>内容管理</button></div><div className="footer-contact"><small>访客服务</small><strong>电话待后台录入</strong><p>河南省焦作市修武县<br/>西村乡大南坡村</p></div><div className="source-note">路线与村庄资料参考文化和旅游部、修武县及焦作市公开信息，更新时间：2026 年 8 月。出行前请再次核实班次。</div></footer>
+      <footer className="site-footer"><div className="footer-brand"><span className="brand-seal">南</span><h2>南坡之窗</h2><p>太行山下，一座会生长的村庄。</p></div><div><small>来南坡</small><a href="#route">出行路线</a><a href="#nearby">百公里周边游</a><a href="#experience">游玩与采摘</a><a href="#stay">民宿山居</a><a href="#goods">乡野好物</a></div><div><small>认识南坡</small><a href="#about">村庄故事</a><a href="#about">文化空间</a><button onClick={onManage}>内容管理</button></div><div className="footer-contact"><small>访客服务</small><strong>电话待后台录入</strong><p>河南省焦作市修武县<br/>西村乡大南坡村</p></div><div className="source-note">路线与村庄资料参考文化和旅游部、焦作市文旅局及景区公开信息，更新时间：2026 年 8 月。页面距离、车程为从大南坡村出发的规划估算，不代表实时导航；出发前请复核路况、班次、票务与开放安排。</div></footer>
       {storyItem&&<ProductStory product={storyItem} onClose={()=>setStoryItem(null)} onBuy={()=>{setStoryItem(null);setOrderItem(storyItem)}}/>}
       {orderItem&&<CheckoutFlow product={orderItem} onClose={()=>setOrderItem(null)}/>} 
+      {videoItem&&<VideoPreview item={videoItem} onClose={()=>setVideoItem(null)}/>}
       {toast&&<div className="toast">✓ {toast}</div>}
     </main>
   );
+}
+
+function Pagination({ page, total, pageSize, onChange, label, dark = false }: { page: number; total: number; pageSize: number; onChange: (page: number) => void; label: string; dark?: boolean }) {
+  const pages = Math.ceil(total / pageSize);
+  return <nav className={`pagination ${dark ? 'dark' : ''}`} aria-label={`${label}分页`}><span>共 {total} 项</span><div><button disabled={page===1} onClick={()=>onChange(page-1)} aria-label={`上一页${label}`}>←</button>{Array.from({length:pages},(_,index)=>index+1).map(item=><button key={item} className={page===item?'active':''} onClick={()=>onChange(item)} aria-current={page===item?'page':undefined}>{String(item).padStart(2,'0')}</button>)}<button disabled={page===pages} onClick={()=>onChange(page+1)} aria-label={`下一页${label}`}>→</button></div><small>{String(page).padStart(2,'0')} / {String(pages).padStart(2,'0')}</small></nav>;
+}
+
+function VideoPreview({ item, onClose }: { item: (typeof experienceCards)[number]; onClose: () => void }) {
+  return <div className="modal-backdrop video-backdrop"><section className="video-modal"><header><div><small>FIELD VIDEO · 项目实拍</small><h2>{item.name}</h2></div><button onClick={onClose} aria-label="关闭视频">×</button></header><video controls playsInline preload="metadata" poster={item.image}><source src="/videos/nanpo-experience.mp4" type="video/mp4"/>您的浏览器暂不支持视频播放。</video><footer><div><span>{item.type}</span><strong>{item.season} · {item.duration}</strong></div><p>演示视频由后台上传后公开，可同时配置封面图、标题与文字说明。</p></footer></section></div>;
+}
+
+function NearbyTravel({ notify }: { notify: (message: string) => void }) {
+  const [planId, setPlanId] = useState<NearbyPlanId>('canyon');
+  const plan = nearbyPlans[planId];
+  return <section className="nearby-section" id="nearby">
+    <div className="section-kicker"><span>03</span><small>EXPLORE WITHIN 100 KM</small></div>
+    <div className="nearby-head">
+      <div><span>从南坡，再走远一点</span><h2>以村庄为圆心，<br/>打开百公里山河。</h2></div>
+      <div className="radius-note"><span className="radius-rings"><i/><i/><i/><b>南坡</b></span><p><strong>100 km</strong> 旅行生活圈<small>所有目的地均按从大南坡村出发估算</small></p></div>
+    </div>
+
+    <div className="nearby-spots">
+      {nearbySpots.map((spot, index) => <article key={spot.name} className={`spot-card ${spot.tone}`}>
+        <header><span>{spot.mark}</span><small>0{index + 1} · {spot.type}</small></header>
+        <h3>{spot.name}</h3><p>{spot.desc}</p><ul>{spot.highlights.map(item => <li key={item}>{item}</li>)}</ul>
+        <div><strong>{spot.range}</strong><small>{spot.time}</small><a href={spot.map} target="_blank" rel="noreferrer" aria-label={`在地图中查看${spot.name}`}>地图导航 ↗</a></div>
+      </article>)}
+    </div>
+
+    <div className="plan-studio">
+      <div className="plan-aside">
+        <small>TRIP PLANNER</small><h3>选一条适合你的路线</h3><p>以南坡为起点，按时间、体力和兴趣来安排。</p>
+        <div className="plan-tabs">
+          {(Object.entries(nearbyPlans) as [NearbyPlanId, typeof plan][]).map(([id, item]) => <button key={id} className={planId === id ? 'active' : ''} onClick={() => setPlanId(id)}><span>{item.days}</span><b>{item.name}</b><small>{item.fit}</small><i>→</i></button>)}
+        </div>
+      </div>
+      <div className={`plan-detail ${plan.color}`}>
+        <header><div><small>{plan.eyebrow}</small><h3>{plan.name}</h3></div><span>{plan.distance}</span></header>
+        <p className="plan-summary">{plan.summary}</p>
+        <div className="plan-schedule">{plan.stops.map((stop, index) => <div key={stop.time + stop.title}><time>{stop.time}</time><i><b>{index + 1}</b></i><p><strong>{stop.title}</strong><small>{stop.detail}</small></p></div>)}</div>
+        <footer><div>{plan.tips.map(tip => <span key={tip}>✓ {tip}</span>)}</div><button onClick={() => notify(`已收藏：${plan.name}`)}>收藏这条路线 →</button></footer>
+      </div>
+    </div>
+
+    <div className="planning-disclaimer"><span>行前复核</span><p>山区道路、景区开放与观光车安排可能随天气和季节调整。建议出发前使用地图重新规划，并向景区或村庄服务点确认。</p><a href="https://wglj.jiaozuo.gov.cn/2026/08-04/610066.html" target="_blank" rel="noreferrer">查看焦作文旅推荐线路 ↗</a></div>
+  </section>;
 }
 
 function ProductStory({ product, onClose, onBuy }: { product: string; onClose: () => void; onBuy: () => void }) {
@@ -143,14 +275,15 @@ function AdminConsole({ onExit }: { onExit: () => void }) {
   const submit=(event:FormEvent)=>{event.preventDefault();setShowForm(false);notify('内容已保存为草稿，可预览后发布')};
   const orderStages=['待确认收款','已收款 · 待备货','待发货','运输中','已完成'];
   const advanceOrder=()=>{if(orderStage<4){setOrderStage(orderStage+1);notify(orderStage===0?'已确认到账，订单已通知农户备货':orderStage===1?'备货完成，等待录入快递单号':orderStage===2?'快递单号已录入，客户已收到通知':'订单已确认完成')}};
+  const manageItems = tab==='stay'?stayCards:tab==='goods'?goodsCards:tab==='experience'?experienceCards:[{name:'村庄访客服务',type:'电话待录入',desc:'用于公开页顶部与底部联系咨询入口',price:'未发布'}];
   return <main className="admin-shell">
-    <aside className="admin-sidebar"><div className="brand admin-brand"><span className="brand-seal">南</span><span><b>南坡之窗</b><small>村庄运营中心</small></span></div><nav><button className={tab==='overview'?'active':''} onClick={()=>setTab('overview')}>⌂ <span>总览</span></button><button className={tab==='orders'?'active':''} onClick={()=>setTab('orders')}>▤ <span>订单与发货</span><i className="alert-badge">6</i></button><button className={tab==='stay'?'active':''} onClick={()=>setTab('stay')}>▦ <span>民宿管理</span><i>3</i></button><button className={tab==='goods'?'active':''} onClick={()=>setTab('goods')}>◇ <span>农品与过程</span><i>4</i></button><button className={tab==='contact'?'active':''} onClick={()=>setTab('contact')}>◌ <span>联系信息</span></button></nav><div className="admin-bottom"><button onClick={onExit}>← 返回南坡之窗</button><div><span>管</span><p><b>村庄管理员</b><small>内容与订单运营</small></p></div></div></aside>
-    <section className="admin-main"><header><div><small>南坡之窗 / 村庄运营中心</small><h1>{tab==='overview'?'运营总览':tab==='orders'?'订单与发货':tab==='stay'?'民宿管理':tab==='goods'?'农品与生产过程':'联系信息'}</h1></div><div><button onClick={onExit}>↗ 预览公开页面</button>{tab!=='orders'&&<button className="primary" onClick={()=>setShowForm(true)}>＋ 上架新内容</button>}</div></header>
+    <aside className="admin-sidebar"><div className="brand admin-brand"><span className="brand-seal">南</span><span><b>南坡之窗</b><small>村庄运营中心</small></span></div><nav><button className={tab==='overview'?'active':''} onClick={()=>setTab('overview')}>⌂ <span>总览</span></button><button className={tab==='orders'?'active':''} onClick={()=>setTab('orders')}>▤ <span>订单与发货</span><i className="alert-badge">6</i></button><button className={tab==='stay'?'active':''} onClick={()=>setTab('stay')}>▦ <span>民宿管理</span><i>6</i></button><button className={tab==='goods'?'active':''} onClick={()=>setTab('goods')}>◇ <span>农品与过程</span><i>8</i></button><button className={tab==='experience'?'active':''} onClick={()=>setTab('experience')}>◈ <span>游玩采摘</span><i>6</i></button><button className={tab==='contact'?'active':''} onClick={()=>setTab('contact')}>◌ <span>联系信息</span></button></nav><div className="admin-bottom"><button onClick={onExit}>← 返回南坡之窗</button><div><span>管</span><p><b>村庄管理员</b><small>内容与订单运营</small></p></div></div></aside>
+    <section className="admin-main"><header><div><small>南坡之窗 / 村庄运营中心</small><h1>{tab==='overview'?'运营总览':tab==='orders'?'订单与发货':tab==='stay'?'民宿管理':tab==='goods'?'农品与生产过程':tab==='experience'?'游玩采摘项目':'联系信息'}</h1></div><div><button onClick={onExit}>↗ 预览公开页面</button>{tab!=='orders'&&<button className="primary" onClick={()=>setShowForm(true)}>＋ 上架新内容</button>}</div></header>
       {tab==='overview'&&<><div className="admin-stats"><article><span>待确认收款</span><strong>6</strong><small className="orange">需要人工核对</small></article><article><span>待发货</span><strong>3</strong><small>今日处理</small></article><article><span>农户待审核记录</span><strong>2</strong><small>照片与视频</small></article><article><span>本周成交意向</span><strong>48</strong><small>↑ 18.4%</small></article></div><div className="admin-grid"><article className="content-status"><div className="admin-card-head"><div><h2>今日需要处理</h2><p>收款、审核、备货与发货统一流转</p></div><strong>11</strong></div><ul className="ops-todo"><li><span className="op-icon money">¥</span><div><b>6 笔订单等待确认到账</b><small>客户已上传转账备注</small></div><button onClick={()=>setTab('orders')}>去核款</button></li><li><span className="op-icon farm">田</span><div><b>2 条农户生产记录待审核</b><small>确认真实后可对外公开</small></div><button onClick={()=>setTab('goods')}>去审核</button></li><li><span className="op-icon box">□</span><div><b>3 笔订单等待发货</b><small>需要填写物流公司与单号</small></div><button onClick={()=>setTab('orders')}>去发货</button></li></ul></article><article className="admin-preview"><div><span>公开页预览</span><button onClick={onExit}>打开 ↗</button></div><div className="mini-page"><Image src="/images/village-pond.jpg" alt="公开页预览" fill sizes="30vw"/><h3>真实记录，让好产品被看见。</h3></div></article></div><article className="recent-table"><div className="admin-card-head"><div><h2>最新业务动态</h2><p>订单与农户内容统一留痕</p></div><button onClick={()=>setTab('orders')}>查看全部</button></div><div className="table-row head"><span>业务内容</span><span>类型</span><span>状态</span><span>更新时间</span><span/></div>{['订单 NP0018 · 太行山核桃|订单|待核款|刚刚','梁有福 · 核桃采收记录|生产记录|待审核|8 分钟前','订单 NP0016 · 山野百花蜜|订单|待发货|1 小时前'].map(row=>{const [a,b,c,d]=row.split('|');return <div className="table-row" key={a}><strong>{a}</strong><span>{b}</span><span className={c==='待发货'?'published':'draft'}>{c}</span><span>{d}</span><button>•••</button></div>})}</article></>}
       {tab==='orders'&&<section className="orders-panel"><div className="order-flow-head"><div><small>统一订单状态流</small><h2>客户下单 → 转账 → 后台核款 → 农户备货 → 统一发货</h2></div><span>全流程留痕</span></div><div className="order-flow">{orderStages.map((stage,index)=><div className={index<=orderStage?'active':''} key={stage}><span>{index<orderStage?'✓':index+1}</span><b>{stage}</b>{index<orderStages.length-1&&<i/>}</div>)}</div><div className="orders-layout"><aside className="order-queue"><header><h3>订单队列</h3><span>6 笔待核款</span></header>{['NP202608290018|张晓宁|太行山核桃|¥29.90','NP202608290017|李敏|山野百花蜜|¥39.00','NP202608290016|王先生|石磨小米|¥33.60'].map((row,index)=>{const [id,name,goods,amount]=row.split('|');return <button className={index===0?'active':''} key={id}><span>{index===0?'待核款':index===1?'待核款':'待发货'}</span><b>{goods}</b><small>{name} · {amount}</small><i>{id.slice(-4)}</i></button>})}</aside><article className="order-detail"><header><div><small>订单 NP202608290018</small><h3>太行山核桃 × 1</h3></div><span className="order-status">{orderStages[orderStage]}</span></header><div className="order-info-grid"><div><small>客户</small><b>张晓宁 · 138****2806</b></div><div><small>应收金额</small><b className="amount">¥29.90</b></div><div><small>收货地址</small><b>河南省郑州市金水区 ×× 路 18 号</b></div><div><small>转账备注</small><b>2806 核桃</b></div></div><div className="payment-proof"><DemoQr/><div><small>客户支付信息</small><h4>已点击“我已完成转账”</h4><p>提交时间：2026-08-29 12:18<br/>收款渠道：村庄统一收款码（原型）</p></div><button onClick={()=>notify('已记录：需要人工核对实际到账')}>查看核款说明</button></div>{orderStage>=2&&<div className="shipping-form"><label>物流公司<select defaultValue="顺丰速运"><option>顺丰速运</option><option>邮政快递</option><option>中通快递</option></select></label><label>快递单号<input defaultValue="SF1234567890"/></label></div>}<footer><button onClick={()=>notify('已添加内部订单备注')}>添加备注</button><button className="primary" onClick={advanceOrder} disabled={orderStage===4}>{orderStage===0?'确认已到账':orderStage===1?'确认备货完成':orderStage===2?'录入单号并发货':orderStage===3?'确认订单完成':'订单已完成'} →</button></footer><div className="risk-note">重要：原型仅演示人工核款流程。真实上线需配置唯一订单号、转账备注、防重复确认、操作日志和退款处理。</div></article></div></section>}
-      {tab!=='overview'&&tab!=='orders'&&<section className="manage-list"><div className="manage-toolbar"><div><button className="active">全部</button><button>已发布</button><button>待审核</button></div><button onClick={()=>setShowForm(true)}>＋ 新增{tab==='stay'?'民宿':tab==='goods'?'农品':'联系人'}</button></div>{(tab==='stay'?stayCards:tab==='goods'?goodsCards:[{name:'村庄访客服务',type:'电话待录入',desc:'用于公开页顶部与底部联系咨询入口',price:'未发布'}]).map((item,index)=><article key={item.name}><span className="row-avatar">{tab==='stay'?'宿':tab==='goods'?'品':'联'}</span><div><h3>{item.name}</h3><p>{'type' in item?item.type:''} · {'desc' in item?item.desc:''}</p>{tab==='goods'&&<small className="record-count">真实生产记录 {index+5} 条 · 最近更新 {index+1} 天前</small>}</div><span className={index===1?'published':'draft'}>{index===1?'展示中':tab==='goods'?'待审核':'待完善'}</span><button onClick={()=>notify(tab==='goods'?'已打开生产记录审核页':'已打开编辑页')}>{tab==='goods'?'审核过程':'编辑'}</button><button>•••</button></article>)}</section>}
+      {tab!=='overview'&&tab!=='orders'&&<section className="manage-list"><div className="manage-toolbar"><div><button className="active">全部</button><button>已发布</button><button>待审核</button></div><button onClick={()=>setShowForm(true)}>＋ 新增{tab==='stay'?'民宿':tab==='goods'?'农品':tab==='experience'?'游玩项目':'联系人'}</button></div>{manageItems.map((item,index)=><article key={item.name}><span className="row-avatar">{tab==='stay'?'宿':tab==='goods'?'品':tab==='experience'?'游':'联'}</span><div><h3>{item.name}</h3><p>{item.type} · {item.desc}</p>{tab==='goods'&&<small className="record-count">真实生产记录 {index+5} 条 · 最近更新 {index+1} 天前</small>}{tab==='experience'&&<small className="record-count">{'hasVideo' in item&&item.hasVideo?'视频 1 条 · 图集 6 张':'图集 4 张'} · 预约规则已配置</small>}</div><span className={index===1?'published':'draft'}>{index===1?'展示中':tab==='goods'?'待审核':'待完善'}</span><button onClick={()=>notify(tab==='goods'?'已打开生产记录审核页':tab==='experience'?'已打开项目与媒体配置':'已打开编辑页')}>{tab==='goods'?'审核过程':tab==='experience'?'配置媒体':'编辑'}</button><button>•••</button></article>)}</section>}
     </section>
-    {showForm&&<div className="modal-backdrop"><form className="content-form" onSubmit={submit}><header><div><small>CONTENT PUBLISH</small><h2>上架新内容</h2></div><button type="button" onClick={()=>setShowForm(false)}>×</button></header><div className="type-options"><label><input type="radio" name="type" defaultChecked/> 民宿</label><label><input type="radio" name="type"/> 农产品</label><label><input type="radio" name="type"/> 联系方式</label></div><label>名称<input required placeholder="例如：南坡山居一号院"/></label><div className="form-grid"><label>价格 / 说明<input placeholder="例如：¥368 / 晚"/></label><label>联系电话<input placeholder="请填写真实联系电话"/></label></div><label>简介<textarea placeholder="用一两句话介绍特色、服务与注意事项"/></label><label className="upload-box"><input type="file" accept="image/*"/><span>＋ 上传封面图片</span><small>支持 JPG、PNG，建议横版图片</small></label><footer><button type="button" onClick={()=>setShowForm(false)}>取消</button><button type="submit">保存为草稿</button><button type="submit" className="primary">保存并发布</button></footer></form></div>}
+    {showForm&&<div className="modal-backdrop"><form className="content-form" onSubmit={submit}><header><div><small>CONTENT PUBLISH</small><h2>上架新内容</h2></div><button type="button" onClick={()=>setShowForm(false)}>×</button></header><div className="type-options"><label><input type="radio" name="type" defaultChecked={tab==='stay'||tab==='overview'}/> 民宿</label><label><input type="radio" name="type" defaultChecked={tab==='goods'}/> 农产品</label><label><input type="radio" name="type" defaultChecked={tab==='experience'}/> 游玩采摘</label><label><input type="radio" name="type" defaultChecked={tab==='contact'}/> 联系方式</label></div><label>名称<input required placeholder="例如：秋季核桃采摘体验"/></label><div className="form-grid"><label>价格 / 说明<input placeholder="例如：¥68 / 人"/></label><label>联系电话<input placeholder="请填写真实联系电话"/></label></div><label>简介<textarea placeholder="用一两句话介绍特色、服务与注意事项"/></label><label className="upload-box media-upload"><input type="file" accept="image/*,video/*" multiple/><span>＋ 上传图片或视频</span><small>支持 JPG、PNG、MP4；首张图片作为封面，可拖动排序</small></label><footer><button type="button" onClick={()=>setShowForm(false)}>取消</button><button type="submit">保存为草稿</button><button type="submit" className="primary">保存并发布</button></footer></form></div>}
     {toast&&<div className="toast">✓ {toast}</div>}
   </main>
 }
