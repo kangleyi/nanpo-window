@@ -61,5 +61,15 @@ docker run --env-file .env -p 8080:8080 \
   -v nanpo-window-media:/data/uploads nanpo-window
 ```
 
+Docker 构建默认使用阿里云 Maven 公共仓库、npmmirror Node 镜像和 npm registry。需要切换企业仓库时可覆盖构建参数：
+
+```bash
+docker build \
+  --build-arg MAVEN_MIRROR_URL=https://your-nexus.example.com/repository/maven-public/ \
+  --build-arg NODE_DOWNLOAD_ROOT=https://npmmirror.com/mirrors/node/ \
+  --build-arg NPM_REGISTRY=https://registry.npmmirror.com \
+  -t nanpo-window .
+```
+
 当前 `prod` profile 会禁用本地短信、AI 和文件存储适配器；接入正式供应商前，单机验收部署不要设置
 `SPRING_PROFILES_ACTIVE=prod`。数据库密码不应写入仓库。

@@ -4,9 +4,12 @@ WORKDIR /workspace
 
 ARG NPM_REGISTRY=https://registry.npmmirror.com
 ARG NODE_DOWNLOAD_ROOT=https://npmmirror.com/mirrors/node/
+ARG MAVEN_MIRROR_URL=https://maven.aliyun.com/repository/public
 
 COPY . .
-RUN mvn -B -pl backend -am clean package -DskipTests \
+RUN mvn -B -s docker/maven-settings.xml \
+    -Dmaven.mirror.url="${MAVEN_MIRROR_URL}" \
+    -pl backend -am clean package -DskipTests \
     -Dnpm.registry="${NPM_REGISTRY}" \
     -Dnode.download.root="${NODE_DOWNLOAD_ROOT}"
 
