@@ -5,6 +5,30 @@ import { Order } from './orderApi';
 
 export type ContentKind = 'homestays' | 'experiences';
 
+export type GoodsSectionSettings = {
+  siteId: number;
+  eyebrow: string;
+  title: string;
+  description: string;
+  seasonLabel: string;
+  seasonNote: string;
+  imageUrl: string;
+  imageCaption: string;
+  updatedAt: string;
+};
+
+export type GoodsSectionCommand = Omit<GoodsSectionSettings, 'siteId' | 'updatedAt'>;
+
+export function loadGoodsSectionSettings(): Promise<GoodsSectionSettings> {
+  return apiRequest<GoodsSectionSettings>('/api/admin/content/site-sections/goods');
+}
+
+export function updateGoodsSectionSettings(command: GoodsSectionCommand): Promise<GoodsSectionSettings> {
+  return apiRequest<GoodsSectionSettings>('/api/admin/content/site-sections/goods', {
+    method: 'PUT', body: JSON.stringify(command),
+  });
+}
+
 export type ManagedContent = {
   id: number;
   name: string;
@@ -111,6 +135,7 @@ export type ProductCommand = {
   season: string;
   summary: string;
   coverUrl: string;
+  imageUrls: string[];
   skus: { id?: number; specification: string; unitPrice: number; stockNote?: string }[];
 };
 

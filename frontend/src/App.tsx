@@ -1,4 +1,4 @@
-import { FormEvent, ImgHTMLAttributes, useCallback, useEffect, useState } from 'react';
+import { FormEvent, ImgHTMLAttributes, useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from './services/api';
 import { loadPublicHomeData, loadPublicProduct, ProductDetail, PublicHomeData } from './services/publicApi';
 import { createOrder, Order, reportOrderPayment } from './services/orderApi';
@@ -28,6 +28,92 @@ function Image({ fill, priority, style, ...props }: ImageProps) {
       }
     />
   );
+}
+
+const AMAP_POSITION: [number, number] = [113.324247, 35.345578];
+const AMAP_SHARE_URL = 'https://surl.amap.com/kfIn9ZYM8vC';
+const AMAP_WEB_KEY = (import.meta.env.VITE_AMAP_WEB_KEY ?? '').trim();
+const AMAP_SECURITY_CODE = (import.meta.env.VITE_AMAP_SECURITY_CODE ?? '').trim();
+let amapJsPromise: Promise<void> | undefined;
+let amapUiPromise: Promise<void> | undefined;
+
+function loadMapScript(id: string, src: string, ready: () => boolean): Promise<void> {
+  if (ready()) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const existing = document.getElementById(id) as HTMLScriptElement | null;
+    const script = existing ?? document.createElement('script');
+    const onLoad = () => ready() ? resolve() : reject(new Error('高德地图资源加载失败'));
+    script.addEventListener('load', onLoad, { once: true });
+    script.addEventListener('error', () => reject(new Error('高德地图资源加载失败')), { once: true });
+    if (!existing) {
+      script.id = id;
+      script.src = src;
+      script.async = true;
+      document.head.appendChild(script);
+    }
+  });
+}
+
+function AmapLocationMap() {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const configured = Boolean(AMAP_WEB_KEY && AMAP_SECURITY_CODE);
+
+  useEffect(() => {
+    if (!configured || !containerRef.current) return;
+    let disposed = false;
+    let map: { destroy: () => void } | undefined;
+    const amapWindow = window as Window & {
+      AMap?: any;
+      AMapUI?: any;
+      _AMapSecurityConfig?: { securityJsCode: string };
+    };
+
+    amapWindow._AMapSecurityConfig = { securityJsCode: AMAP_SECURITY_CODE };
+    amapJsPromise ??= loadMapScript(
+      'nanpo-amap-js',
+      `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(AMAP_WEB_KEY)}`,
+      () => Boolean(amapWindow.AMap),
+    );
+    amapUiPromise ??= amapJsPromise.then(() => loadMapScript(
+      'nanpo-amap-ui',
+      'https://webapi.amap.com/ui/1.1/main.js',
+      () => Boolean(amapWindow.AMapUI),
+    ));
+
+    amapUiPromise.then(() => {
+      if (disposed || !containerRef.current) return;
+      map = new amapWindow.AMap.Map(containerRef.current, {
+        center: AMAP_POSITION,
+        zoom: 15,
+        viewMode: '2D',
+        mapStyle: 'amap://styles/whitesmoke',
+      });
+      amapWindow.AMapUI.loadUI(['overlay/SimpleMarker'], (SimpleMarker: any) => {
+        if (disposed) return;
+        new SimpleMarker({
+          iconLabel: { innerHTML: '南', style: { color: '#fff', fontSize: '15px' } },
+          iconStyle: 'red',
+          label: { content: '大南坡村', offset: new amapWindow.AMap.Pixel(30, 4) },
+          map,
+          position: AMAP_POSITION,
+          title: '大南坡村',
+        });
+        setStatus('ready');
+      });
+    }).catch(() => setStatus('error'));
+
+    return () => {
+      disposed = true;
+      map?.destroy();
+    };
+  }, [configured]);
+
+  if (!configured || status === 'error') {
+    return <div className="map-card amap-card-fallback"><div className="amap-fallback-art"><span className="amap-road-line road-one"/><span className="amap-road-line road-two"/><i className="amap-fallback-pin"><span>南</span></i></div><div className="amap-fallback-copy"><small>高德地图定位</small><strong>大南坡村</strong><span>点击查看实时位置与路线规划</span></div><a className="amap-open" href={AMAP_SHARE_URL} target="_blank" rel="noreferrer">在高德地图中打开 ↗</a></div>;
+  }
+
+  return <div className="map-card amap-card-live"><div ref={containerRef} className="amap-canvas" aria-label="大南坡村高德地图"/><div className="amap-location"><small>目的地</small><strong>大南坡村</strong></div>{status === 'loading' && <span className="amap-loading">地图加载中…</span>}<a className="amap-open" href={AMAP_SHARE_URL} target="_blank" rel="noreferrer">在高德地图中打开 ↗</a></div>;
 }
 
 type RouteType = 'drive' | 'rail' | 'taxi';
@@ -77,28 +163,28 @@ const experienceCards: ExperienceCard[] = [
 ];
 
 const nearbySpots: NearbySpot[] = [
-  { name: '青龙峡 · 峰林峡', range: '约 20—30 km', time: '驾车约 40—60 分钟', type: '峡谷 · 湖泊', mark: '近', tone: 'moss', image: '/images/spots/qinglong.jpg', desc: '峡谷、瀑溪与高峡平湖，适合清凉徒步和山水摄影。', highlights: ['峡谷瀑溪', '翡翠湖色', '山地体验'], map: 'https://uri.amap.com/search?keyword=青龙峡景区峰林峡&city=焦作&callnative=0' },
-  { name: '圆融无碍禅寺', range: '约 20—35 km', time: '驾车约 45—60 分钟', type: '古寺 · 文化', mark: '寺', tone: 'sand', image: '/images/spots/yuanrong.jpg', desc: '太行山前的古寺文化空间，适合与焦作市区安排成轻松半日。', highlights: ['古寺建筑', '山门远眺', '静心漫游'], map: 'https://uri.amap.com/search?keyword=圆融无碍禅寺&city=焦作&callnative=0' },
-  { name: '焦作城市漫游', range: '约 25—35 km', time: '驾车约 50—60 分钟', type: '古街 · 夜游', mark: '城', tone: 'clay', image: '/images/spots/jiaozuo-city.jpg', desc: '恩州驿、南水北调天河公园与焦作夜市，适合轻松逛吃。', highlights: ['恩州驿', '天河公园', '夜市烟火'], map: 'https://uri.amap.com/search?keyword=恩州驿&city=焦作&callnative=0' },
-  { name: '焦作影视城', range: '约 30—40 km', time: '驾车约 55—70 分钟', type: '古风 · 亲子', mark: '影', tone: 'ochre', image: '/images/spots/film-city.png', desc: '以古代建筑场景和影视文化为特色，适合亲子拍照与城市一日游。', highlights: ['古风城楼', '影视场景', '亲子打卡'], map: 'https://uri.amap.com/search?keyword=焦作影视城&city=焦作&callnative=0' },
-  { name: '云台山', range: '约 35—45 km', time: '驾车约 60—75 分钟', type: '峡谷 · 飞瀑', mark: '云', tone: 'pine', image: '/images/spots/yuntai.jpg', desc: '红石峡、潭瀑峡与茱萸峰，第一次来焦作的经典山水选择。', highlights: ['红石峡', '潭瀑峡', '茱萸峰'], map: 'https://uri.amap.com/search?keyword=云台山景区&city=焦作&callnative=0' },
-  { name: '陈家沟', range: '约 65—80 km', time: '驾车约 90 分钟', type: '太极 · 非遗', mark: '拳', tone: 'sand', image: '/images/spots/chenjiagou.jpg', desc: '从太极祖祠到传统拳法体验，适合亲子研学与文化旅行。', highlights: ['太极祖祠', '太极文化园', '拳法体验'], map: 'https://uri.amap.com/search?keyword=陈家沟景区&city=焦作&callnative=0' },
-  { name: '嘉应观', range: '约 70—85 km', time: '驾车约 90—110 分钟', type: '黄河 · 古建', mark: '河', tone: 'ochre', image: '/images/spots/jiayingguan.jpg', desc: '走近黄河治理历史与清代建筑群，适合与陈家沟串联。', highlights: ['治黄行宫', '清代古建', '黄河文化'], map: 'https://uri.amap.com/search?keyword=嘉应观景区&city=焦作&callnative=0' },
-  { name: '神农山', range: '约 75—95 km', time: '驾车约 100—120 分钟', type: '登山 · 地质', mark: '峰', tone: 'stone', image: '/images/spots/shennong.jpg', desc: '龙脊长城与白皮松景观，适合体力充足的登山爱好者。', highlights: ['紫金顶', '龙脊长城', '白皮松'], map: 'https://uri.amap.com/search?keyword=神农山景区&city=焦作&callnative=0' },
-  { name: '青天河', range: '约 85—100 km', time: '驾车约 110—130 分钟', type: '游船 · 红叶', mark: '湖', tone: 'blue', image: '/images/spots/qingtianhe.jpg', desc: '高峡平湖、十里画廊与秋日红叶，适合安排一整天慢慢游览。', highlights: ['高峡平湖', '游船画廊', '秋日红叶'], map: 'https://uri.amap.com/search?keyword=青天河景区&city=焦作&callnative=0' },
+  { name: '大南坡村', range: '村内出发', time: '建议慢游 2—3 小时', type: '乡村 · 艺术', mark: '南', tone: 'clay', image: '/images/nanpo-architecture.png', desc: '从老大队部到乡村书店，在灰砖院落、古树与公共文化空间之间读懂村庄更新。', highlights: ['艺术中心', '方所乡村文化', '碧山工销社'], map: 'https://surl.amap.com/kfIn9ZYM8vC' },
+  { name: '圆融寺', range: '约 7—17 km', time: '驾车约 25 分钟', type: '古寺 · 石刻', mark: '融', tone: 'sand', image: '/images/spots/yuanrong-new.jpg', desc: '太行山前的千年古刹，院落依山展开，适合静心漫游并感受山寺建筑。', highlights: ['古寺院落', '石刻碑塔', '山门远眺'], map: 'https://uri.amap.com/search?keyword=圆融无碍禅寺&city=焦作&callnative=0' },
+  { name: '青龙峡', range: '约 11—21 km', time: '驾车约 35 分钟', type: '峡谷 · 瀑溪', mark: '青', tone: 'moss', image: '/images/spots/qinglong.jpg', desc: '峡谷幽深、潭瀑相连，适合避暑徒步，也可把沿途山路当作太行风景的一部分。', highlights: ['峡谷瀑溪', '爱情一号公路', '清凉徒步'], map: 'https://uri.amap.com/search?keyword=青龙峡景区&city=焦作&callnative=0' },
+  { name: '峰林峡', range: '约 17—27 km', time: '驾车约 45 分钟', type: '天池 · 峡谷', mark: '峰', tone: 'pine', image: '/images/spots/fenglin.jpg', desc: '峰林与碧水相拥，高峡平湖色彩清透，适合乘船观景与亲子山水体验。', highlights: ['云台天池', '高峡平湖', '山水游乐'], map: 'https://uri.amap.com/search?keyword=峰林峡&city=焦作&callnative=0' },
+  { name: '当阳峪绞胎瓷博物馆', range: '约 19—29 km', time: '驾车约 45 分钟', type: '非遗 · 博物馆', mark: '瓷', tone: 'ochre', image: '/images/spots/dangyangyu.jpg', desc: '走近“表里如一”的绞胎纹理，看多色瓷泥如何经过拉坯、修坯与烧制成为独一无二的器物。', highlights: ['国家级非遗', '绞胎瓷器', '工艺体验'], map: 'https://uri.amap.com/search?keyword=当阳峪绞胎瓷博物馆&city=焦作&callnative=0' },
+  { name: '圆通寺', range: '约 23—33 km', time: '驾车约 50 分钟', type: '古寺 · 山麓', mark: '通', tone: 'stone', image: '/images/spots/yuantong.jpg', desc: '巡返村旁的山麓寺院，殿宇沿地势铺开，观音像与太行山背景构成醒目的远观点位。', highlights: ['巡返古寺', '观音像', '太行山麓'], map: 'https://uri.amap.com/search?keyword=巡返圆通寺&city=焦作&callnative=0' },
+  { name: '恩州驿', range: '约 27—37 km', time: '驾车约 55 分钟', type: '古街 · 夜游', mark: '驿', tone: 'clay', image: '/images/spots/enzhou.jpg', desc: '近千米古风街区串联老建筑、非遗手作与地方小吃，傍晚亮灯后更有烟火气。', highlights: ['古风街区', '非遗市集', '夜景演艺'], map: 'https://uri.amap.com/search?keyword=恩州驿&city=焦作&callnative=0' },
+  { name: '云台山', range: '约 33—43 km', time: '驾车约 65 分钟', type: '峡谷 · 飞瀑', mark: '云', tone: 'blue', image: '/images/spots/yuntai-new.jpg', desc: '红石峡、潭瀑峡与茱萸峰构成经典山水组合，适合为第一次到焦作留出完整一天。', highlights: ['红石峡', '潭瀑峡', '茱萸峰'], map: 'https://uri.amap.com/search?keyword=云台山景区&city=焦作&callnative=0' },
+  { name: '宝泉', range: '约 53—63 km', time: '驾车约 85 分钟', type: '峡谷 · 瀑布', mark: '泉', tone: 'moss', image: '/images/spots/baoquan.jpg', desc: '高峡、碧水与成群瀑布是这里的主角，适合安排一日亲水游并预留充足步行时间。', highlights: ['翡翠湖色', '峡谷瀑布', '亲水步道'], map: 'https://uri.amap.com/search?keyword=河南宝泉旅游区&city=新乡&callnative=0' },
 ];
 
 const nearbyPlans: Record<NearbyPlanId, NearbyPlan> = {
   canyon: {
-    eyebrow: '轻松半日 · 最近山水', name: '南坡慢游 + 太行双峡', days: '0.5 DAY', fit: '家庭 / 摄影 / 避暑', distance: '单程约 20—30 km', color: 'green',
-    summary: '上午在村里慢慢走，午后去青龙峡或峰林峡二选一，把路程留短，把时间留给山风。',
+    eyebrow: '一村一峡 · 山水慢游', name: '南坡村落 + 青龙峡', days: '1 DAY', fit: '家庭 / 摄影 / 避暑', distance: '单程约 16 km', color: 'green',
+    summary: '上午沿村内公共文化空间慢慢走，午后进入青龙峡，把乡村更新与太行山水放进同一天。',
     stops: [
       { time: '09:00', title: '大南坡村', detail: '艺术中心、乡村书店与老村散步' },
       { time: '12:00', title: '村中午餐', detail: '提前向民宿或村庄服务点预约' },
-      { time: '13:30', title: '青龙峡 / 峰林峡', detail: '根据开放情况与体力二选一游览' },
+      { time: '13:30', title: '青龙峡', detail: '沿峡谷、潭瀑与山路轻徒步' },
       { time: '17:30', title: '返回南坡', detail: '住进山居，留一晚看山间暮色' },
     ],
-    tips: ['山区弯道较多，建议白天行车', '两景区开放安排可能调整，出发前确认'],
+    tips: ['山区弯道较多，建议白天行车', '景区开放安排可能调整，出发前确认'],
   },
   yuntai: {
     eyebrow: '经典一日 · 山水首选', name: '云台山峡谷一日', days: '1 DAY', fit: '初访 / 山水 / 徒步', distance: '单程约 35—45 km', color: 'blue',
@@ -113,14 +199,14 @@ const nearbyPlans: Record<NearbyPlanId, NearbyPlan> = {
     tips: ['景区面积大，不建议一天塞满所有点位', '景区内交通以当日观光车安排为准'],
   },
   culture: {
-    eyebrow: '人文两日 · 山河与太极', name: '怀川文化环线', days: '2 DAYS', fit: '亲子 / 研学 / 非遗', distance: '各点均在 100 km 圈层', color: 'orange',
-    summary: '第一天认识南坡与焦作城市，第二天串联陈家沟、嘉应观，在太极和黄河故事里读懂怀川。',
+    eyebrow: '人文两日 · 古村与非遗', name: '怀川文化打卡线', days: '2 DAYS', fit: '亲子 / 研学 / 非遗', distance: '单程最远约 32 km', color: 'orange',
+    summary: '第一天认识大南坡的乡村更新与当阳峪绞胎瓷，第二天串联圆融寺、圆通寺和恩州驿。',
     stops: [
       { time: 'D1 上午', title: '大南坡村', detail: '乡村更新、艺术空间与在地午餐' },
-      { time: 'D1 下午', title: '焦作城市漫游', detail: '恩州驿或南水北调天河公园' },
-      { time: 'D1 晚间', title: '焦作市区住宿', detail: '缩短第二天向南出发的路程' },
-      { time: 'D2 上午', title: '陈家沟', detail: '太极祖祠、拳法体验与非遗研学' },
-      { time: 'D2 下午', title: '嘉应观', detail: '黄河治理历史与清代古建群' },
+      { time: 'D1 下午', title: '当阳峪绞胎瓷博物馆', detail: '看绞胎纹理、窑火与非遗工艺' },
+      { time: 'D1 晚间', title: '恩州驿', detail: '逛古街、非遗市集与夜间灯景' },
+      { time: 'D2 上午', title: '圆融寺', detail: '沿山寺院落慢走，看碑塔与古建' },
+      { time: 'D2 下午', title: '圆通寺', detail: '到巡返村山麓看寺院与太行远景' },
     ],
     tips: ['两日线路建议自驾或包车', '研学与讲解项目建议提前预约'],
   },
@@ -179,14 +265,14 @@ export function PublicWindow({ onManage, onFarmer, onLogin }: { onManage: () => 
   const publicGoodsCards: ProductCard[] = homeData.products.items.map((item) => ({ id: item.id, name: item.name, icon: item.name.slice(0, 1), season: item.season, desc: item.summary, price: `¥ ${Number(item.startingPrice).toFixed(2)} 起`, image: item.coverUrl }));
   const publicExperienceCards: ExperienceCard[] = homeData.experiences.items.map((item) => ({ id: item.id, name: item.name, type: item.type, season: item.season, duration: item.duration, desc: item.summary, price: item.price, image: item.coverUrl, hasVideo: Boolean(item.videoUrl), video: item.videoUrl }));
   const spotTones = ['moss', 'sand', 'clay', 'ochre', 'pine', 'stone', 'blue'];
-  const publicNearbySpots: NearbySpot[] = homeData.attractions.items.map((item, index) => ({ name: item.name, range: `约 ${Math.max(0, Math.round(item.distanceKm - 5))}—${Math.round(item.distanceKm + 5)} km`, time: `驾车约 ${item.driveMinutes} 分钟`, type: item.category, mark: item.name.slice(0, 1), tone: spotTones[index % spotTones.length], image: item.coverUrl, desc: item.summary, highlights: item.highlights, map: item.mapUrl }));
+  const publicNearbySpots: NearbySpot[] = homeData.attractions.items.map((item, index) => ({ name: item.name, range: item.distanceKm <= 1 ? '村内出发' : `约 ${Math.max(0, Math.round(item.distanceKm - 5))}—${Math.round(item.distanceKm + 5)} km`, time: item.driveMinutes <= 0 ? '建议慢游 2—3 小时' : `驾车约 ${item.driveMinutes} 分钟`, type: item.category, mark: item.name.slice(0, 1), tone: spotTones[index % spotTones.length], image: item.coverUrl, desc: item.summary, highlights: item.highlights, map: item.mapUrl }));
   const publicNearbyPlans = Object.fromEntries(homeData.travelPlans.map((item, index) => [item.slug, { eyebrow: '从南坡出发', name: item.name, days: item.duration, fit: item.suitableFor, distance: item.distance, summary: item.summary, color: ['green', 'blue', 'orange'][index % 3], stops: item.stops, tips: item.tips }])) as Record<string, NearbyPlan>;
 
   return (
     <main className="public-window">
       <header className="site-header">
         <a className="brand" href="#top"><span className="brand-seal">乡</span><span><b>乡见西村</b><small>DISCOVER XICUN</small></span></a>
-        <nav aria-label="主要导航"><a href="#about">走进南坡</a><a href="#route">行前指南</a><a href="#nearby">周边游</a><a href="#experience">游玩采摘</a><a href="#stay">山居一晚</a><a href="#goods">山野好物</a></nav>
+        <nav aria-label="主要导航"><a href="#about">走进南坡</a><a href="#route">行前指南</a><a href="#nearby">特色周边游</a><a href="#experience">游玩采摘</a><a href="#stay">山居一晚</a><a href="#goods">山野好物</a></nav>
         <div className="header-actions"><button className="weather" onClick={onLogin}>客户登录</button><button className="weather farmer-entry" onClick={onFarmer}>村民订单</button><button className="manage" onClick={onManage}>内容管理 ↗</button></div>
       </header>
 
@@ -210,16 +296,17 @@ export function PublicWindow({ onManage, onFarmer, onLogin }: { onManage: () => 
         <a href="#route"><span className="quick-no">01</span><div><small>HOW TO ARRIVE</small><b>怎么来南坡</b></div><i>↗</i></a>
         <a href="#stay"><span className="quick-no">02</span><div><small>STAY IN VILLAGE</small><b>住进山居院落</b></div><i>↗</i></a>
         <a href="#goods"><span className="quick-no">03</span><div><small>LOCAL HARVEST</small><b>把山野带回家</b></div><i>↗</i></a>
-        <a href="#nearby"><span className="quick-no">04</span><div><small>WITHIN 100 KM</small><b>从南坡游向周边</b></div><i>↗</i></a>
+        <a href="#nearby"><span className="quick-no">04</span><div><small>FEATURED DAY TRIPS</small><b>特色周边游</b></div><i>↗</i></a>
       </section>
 
       <section className="about-section" id="about">
         <div className="section-kicker"><span>01</span><small>THE VILLAGE</small></div>
         <div className="about-grid">
-          <div className="about-copy"><span>接下来，打开南坡</span><h2>旧砖墙没有被推倒，<br/>它们只是长出了新的故事。</h2><p>大南坡位于修武县西村乡东北部浅山区，由西小庄、东小庄、南坡老村、南坡新村四个自然村组成。这里曾因煤而兴，也曾因资源枯竭而沉寂。如今，老大队部、旧礼堂和供销社被重新激活，成为书店、艺术中心与村庄公共生活的一部分。</p><div className="quote">“不修饰、不掩盖，让时间在空间里沉淀。”</div></div>
+          <div className="about-copy"><span>走进南坡 · 太行山下的村庄新生</span><h2>旧砖墙没有被推倒，<br/>它们只是长出了新的故事。</h2><p>大南坡位于修武县西村乡东北部浅山区，由四个自然村组成。这里曾因煤而兴，也经历过资源退去后的沉寂。2020 年起，老大队部、旧礼堂、粮库和供销社在保留原有尺度与材料的基础上被重新使用，陆续成为艺术中心、乡村书店、社区营造中心和工销社。今天的南坡既看得见太行山前的古树、田园和灰砖院落，也能在公共文化空间里遇见展览、阅读、怀梆戏与在地物产。</p><div className="quote">“不修饰、不掩盖，让时间在空间里沉淀。”</div></div>
           <div className="about-collage"><figure className="large"><Image src="/images/nanpo-courtyard.png" alt="乡见西村绿意院落与石板小径" fill sizes="42vw" /></figure><figure className="small"><Image src="/images/nanpo-sign.png" alt="秋日银杏下的大南坡村牌" fill sizes="18vw" /></figure><span className="year-mark">2026<small>乡村美学更新启程</small></span></div>
         </div>
-        <div className="culture-spaces"><article><span>01</span><h3>方所乡村文化</h3><p>由老戏台更新而来，阅读、展览与村庄日常在这里相遇。</p></article><article><span>02</span><h3>大南坡艺术中心</h3><p>老大队部办公室和粮库变身为面向乡村的艺术空间。</p></article><article><span>03</span><h3>碧山工销社</h3><p>连接民间百工、当代设计与村民生产的乡村商店。</p></article><article><span>04</span><h3>南坡秋兴</h3><p>让音乐、手作、在地生活与远方来客在山村共振。</p></article></div>
+        <div className="village-checkin-head"><span>村内风景与打卡点</span><h3>第一次来，沿着这些地方慢慢走。</h3><p>建议从艺术中心进入村庄，步行串联书店、工销社、戏台与老村院落；具体开放与活动安排以现场为准。</p></div>
+        <div className="culture-spaces"><article><span>01</span><h3>大南坡艺术中心</h3><p>老大队部办公室和粮库更新成展览空间，旧梁架、灰砖墙和院落尺度都被保留下来。</p></article><article><span>02</span><h3>方所乡村文化</h3><p>由老礼堂与戏台更新而来，阅读、展览和村庄日常在同一个屋檐下相遇。</p></article><article><span>03</span><h3>碧山工销社</h3><p>在旧供销社里认识民间百工、当代设计和标注着农户名字的南坡物产。</p></article><article><span>04</span><h3>社区营造中心</h3><p>村民议事、公共活动与访客交流的共享空间，也是理解南坡社区生活的一扇窗口。</p></article><article><span>05</span><h3>怀梆戏台与老礼堂</h3><p>寻找地方戏曲与集体记忆留下的痕迹，在节庆和活动时感受村庄声音。</p></article><article><span>06</span><h3>古树、村牌与灰砖院落</h3><p>从秋日银杏下的村牌走进老村，在石板路、树影和太行田园间留下南坡照片。</p></article></div>
       </section>
 
       <section className="route-section" id="route">
@@ -227,7 +314,7 @@ export function PublicWindow({ onManage, onFarmer, onLogin }: { onManage: () => 
         <div className="route-head"><div><span>行前指南</span><h2>从城市出发，<br/>向山的方向走。</h2></div><p>目的地：{homeData.site.address}<br/>建议导航至“{homeData.site.mapKeyword}”</p></div>
         <div className="route-planner">
           <div className="route-tabs"><button disabled={!routeMap.drive} className={routeType==='drive'?'active':''} onClick={() => setRouteType('drive')}>自驾前往</button><button disabled={!routeMap.rail} className={routeType==='rail'?'active':''} onClick={() => setRouteType('rail')}>高铁 + 打车</button><button disabled={!routeMap.taxi} className={routeType==='taxi'?'active':''} onClick={() => setRouteType('taxi')}>市区打车</button></div>
-          {route ? <div className="route-content"><div className="route-summary"><small>RECOMMENDED ROUTE</small><h3>{route.title}</h3><strong>{route.time}</strong><p>{route.note}</p><button onClick={() => notify(`已复制目的地：${homeData.site.mapKeyword}`)}>复制目的地地址 ↗</button></div><div className="route-line">{route.steps.map((step,index)=><div key={step}><span>{index+1}</span><b>{step}</b>{index<route.steps.length-1&&<i/>}</div>)}</div><div className="map-card amap-card-live"><iframe className="amap-frame" title="大南坡村高德地图" src="https://m.amap.com/navi/?dest=113.324247,35.345578&destName=%E5%A4%A7%E5%8D%97%E5%9D%A1%E6%9D%91&hideRouteIcon=1" loading="lazy" referrerPolicy="no-referrer-when-downgrade" allowFullScreen/><div className="amap-location"><small>目的地</small><strong>大南坡村</strong></div><a className="amap-open" href="https://surl.amap.com/kfIn9ZYM8vC" target="_blank" rel="noreferrer">在高德地图中打开 ↗</a></div></div> : <EmptyState label="出行路线"/>}
+          {route ? <div className="route-content"><div className="route-summary"><small>RECOMMENDED ROUTE</small><h3>{route.title}</h3><strong>{route.time}</strong><p>{route.note}</p><button onClick={() => notify(`已复制目的地：${homeData.site.mapKeyword}`)}>复制目的地地址 ↗</button></div><div className="route-line">{route.steps.map((step,index)=><div key={step}><span>{index+1}</span><b>{step}</b>{index<route.steps.length-1&&<i/>}</div>)}</div><AmapLocationMap/></div> : <EmptyState label="出行路线"/>}
         </div>
         <div className="travel-note"><span>出发提醒</span><p>山区叫车和道路情况可能临时变化；节假日建议提前预约车辆，确认返程安排，并优先选择白天进村。</p><button onClick={() => notify('行前提醒已保存')}>保存提醒</button></div>
       </section>
@@ -249,19 +336,19 @@ export function PublicWindow({ onManage, onFarmer, onLogin }: { onManage: () => 
       </section>
 
       <section className="goods-section" id="goods">
-        <div className="goods-intro"><div className="section-kicker light"><span>06</span><small>LOCAL HARVEST</small></div><span>山野好物</span><h2>每一份收成都有<br/>自己的时节。</h2><p>山核桃、山花椒、小米与蜂蜜，是公开旅游资料中推荐的焦作山野物产。具体商品、价格和村民联系方式由后台上架。</p><div className="season"><b>八月</b><span><i style={{width:'72%'}}/>核桃与花椒陆续成熟</span></div></div>
-        <div className="goods-visual"><Image src="/images/nanpo-workshop.png" alt="乡见西村工销社与乡土手作陈列" fill sizes="35vw"/><span>工销社里的山野收成</span></div>
+        <div className="goods-intro"><div className="section-kicker light"><span>06</span><small>LOCAL HARVEST</small></div><span>{homeData.site.goodsSection?.eyebrow || '山野好物'}</span><h2>{homeData.site.goodsSection?.title || '每一份收成都有自己的时节。'}</h2><p>{homeData.site.goodsSection?.description || '山核桃、山花椒、小米与蜂蜜，是公开旅游资料中推荐的焦作山野物产。具体商品、价格和村民联系方式由后台上架。'}</p><div className="season"><b>{homeData.site.goodsSection?.seasonLabel || '八月'}</b><span><i style={{width:'72%'}}/>{homeData.site.goodsSection?.seasonNote || '核桃与花椒陆续成熟'}</span></div></div>
+        <div className="goods-visual"><Image src={homeData.site.goodsSection?.imageUrl || '/images/nanpo-workshop.png'} alt={homeData.site.goodsSection?.imageCaption || '乡见西村工销社与乡土手作陈列'} fill sizes="35vw"/><span>{homeData.site.goodsSection?.imageCaption || '工销社里的山野收成'}</span></div>
         <div className="goods-list">{publicGoodsCards.length ? <>{publicGoodsCards.slice((goodsPage-1)*goodsPageSize,goodsPage*goodsPageSize).map((item,index)=><article key={item.name}><span className="goods-index">{String((goodsPage-1)*goodsPageSize+index+1).padStart(2,'0')}</span><div className="goods-icon">{item.icon}</div><div><small>{item.season}</small><h3><button className="goods-name" disabled={!item.id} onClick={() => setDetailItem(item)} aria-label={`查看${item.name}商品详情`}>{item.name}</button></h3><p>{item.desc}</p></div><strong>{item.price}</strong><button className="trace-button" onClick={() => setStoryItem(item)}>看过程</button><button onClick={() => setOrderItem(item)}>购买</button></article>)}<Pagination page={goodsPage} total={publicGoodsCards.length} pageSize={goodsPageSize} onChange={setGoodsPage} label="农产品" dark /></> : <EmptyState label="农产品"/>}</div>
       </section>
 
       <section className="day-trip"><div className="day-photo"><Image src="/images/nanpo-autumn.png" alt="乡见西村秋日古建与金色树影" fill sizes="40vw"/><span>ONE DAY IN NANPO</span></div><div className="day-copy"><span>一日南坡建议</span><h2>不赶路，去感受。</h2><div className="timeline"><div><b>09:30</b><p><strong>抵达大南坡</strong><small>从艺术中心开始认识村庄</small></p></div><div><b>11:00</b><p><strong>方所乡村文化</strong><small>在老戏台改成的书店慢慢读</small></p></div><div><b>13:30</b><p><strong>老村散步</strong><small>沿灰砖院落与古树寻找乡土日常</small></p></div><div><b>16:00</b><p><strong>碧山工销社</strong><small>挑一份山野物产带回家</small></p></div></div><button onClick={() => notify('一日游路线已保存')}>收藏这条路线 →</button></div></section>
 
-      <footer className="site-footer"><div className="footer-brand"><span className="brand-seal">乡</span><h2>乡见西村</h2><p>{homeData.site.summary}</p></div><div><small>来南坡</small><a href="#route">出行路线</a><a href="#nearby">百公里周边游</a><a href="#experience">游玩与采摘</a><a href="#stay">民宿山居</a><a href="#goods">乡野好物</a></div><div><small>认识南坡</small><a href="#about">村庄故事</a><a href="#about">文化空间</a><button onClick={onManage}>内容管理</button></div><div className="footer-contact"><small>访客服务</small><strong>{homeData.site.visitorService?.phone || '暂未开通'}</strong><p>{homeData.site.address}<br/>{homeData.site.visitorService?.businessHours}</p></div><div className="source-note">路线与村庄资料来自后台已发布数据。页面距离、车程为从大南坡村出发的规划估算，不代表实时导航；出发前请复核路况、班次、票务与开放安排。</div></footer>
+      <footer className="site-footer"><div className="footer-brand"><span className="brand-seal">乡</span><h2>乡见西村</h2><p>{homeData.site.summary}</p></div><div><small>来南坡</small><a href="#route">出行路线</a><a href="#nearby">特色周边游</a><a href="#experience">游玩与采摘</a><a href="#stay">民宿山居</a><a href="#goods">乡野好物</a></div><div><small>认识南坡</small><a href="#about">村庄故事</a><a href="#about">文化空间</a><button onClick={onManage}>内容管理</button></div><div className="footer-contact"><small>访客服务</small><strong>{homeData.site.visitorService?.phone || '暂未开通'}</strong><p>{homeData.site.address}<br/>{homeData.site.visitorService?.businessHours}</p></div><div className="source-note">路线与村庄资料来自后台已发布数据。页面距离、车程为从大南坡村出发的规划估算，不代表实时导航；出发前请复核路况、班次、票务与开放安排。</div></footer>
       <nav className="mobile-floating-nav" aria-label="手机快捷导航">
         {([
           ['top', '⌂', '首页'],
           ['route', '行', '路线'],
-          ['nearby', '游', '周边'],
+          ['nearby', '游', '特色'],
           ['stay', '宿', '民宿'],
           ['goods', '物', '农品'],
         ] as [PublicNavId, string, string][]).map(([id, icon, label]) => <a
@@ -304,13 +391,32 @@ function ProductDetailModal({ product, onClose, onStory, onBuy }: { product: Pro
     {error&&<div className="product-detail-state"><strong>{error}</strong><button onClick={reload}>重新加载</button></div>}
     {detail&&<>
       <div className="product-detail-overview">
-        <div className="product-detail-cover"><Image src={detail.product.coverUrl || product.image || '/images/products.jpg'} alt={detail.product.name} fill sizes="320px"/></div>
+        <ProductImageGallery product={detail.product} fallbackUrl={product.image}/>
         <div className="product-detail-copy"><div className="product-detail-tags"><span>{detail.product.category}</span><span>{detail.product.season}</span></div><h3>{detail.product.name}</h3><p>{detail.product.summary}</p><div className="product-detail-farmer"><span>{detail.farmer.name.slice(0,1)}</span><div><small>提交农户</small><strong>{detail.farmer.name}</strong></div><i>{detail.farmer.certificationStatus === 'APPROVED' ? '身份已审核 ✓' : '身份待审核'}</i></div></div>
       </div>
       <div className="product-detail-specs"><header><div><small>AVAILABLE OPTIONS</small><h3>可售规格</h3></div><span>共 {detail.skus.length} 种</span></header>{detail.skus.length ? <div>{detail.skus.map((sku) => <article key={sku.id}><div><strong>{sku.specification}</strong><small>规格编号：{sku.code}</small></div><b>¥ {Number(sku.unitPrice).toFixed(2)}</b><p>{sku.stockNote || '库存以提交订单时为准'}</p></article>)}</div> : <EmptyState label="可售规格"/>}</div>
       <footer><button className="detail-story" onClick={onStory}>查看真实生产过程</button><button className="detail-buy" disabled={!detail.skus.length} onClick={onBuy}>选择规格并购买 →</button></footer>
     </>}
   </section></div>;
+}
+
+function ProductImageGallery({ product, fallbackUrl }: { product: ProductDetail['product']; fallbackUrl?: string }) {
+  const images = product.imageUrls?.length
+    ? product.imageUrls
+    : [product.coverUrl || fallbackUrl || '/images/products.jpg'];
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  return <div className="product-detail-gallery">
+    <div className="product-detail-cover">
+      <Image src={images[activeIndex] || images[0]} alt={`${product.name} 图片 ${activeIndex + 1}`} fill sizes="320px"/>
+      {images.length > 1 && <span>{activeIndex + 1} / {images.length}</span>}
+    </div>
+    {images.length > 1 && <div className="product-detail-thumbnails" aria-label={`${product.name}图片列表`}>
+      {images.map((url, index) => <button key={url} type="button" className={index === activeIndex ? 'active' : ''} onClick={() => setActiveIndex(index)} aria-label={`查看第${index + 1}张图片`} aria-pressed={index === activeIndex}>
+        <img src={url} alt=""/>
+      </button>)}
+    </div>}
+  </div>;
 }
 
 function EmptyState({ label }: { label: string }) {
@@ -371,21 +477,94 @@ function VideoPreview({ item, onClose }: { item: ExperienceCard; onClose: () => 
 
 function NearbyTravel({ notify, spots, plans }: { notify: (message: string) => void; spots: NearbySpot[]; plans: Record<string, NearbyPlan> }) {
   const [planId, setPlanId] = useState<NearbyPlanId>(Object.keys(plans)[0] || '');
+  const [spotIndex, setSpotIndex] = useState(0);
+  const [visibleSpotCount, setVisibleSpotCount] = useState(3);
+  const [spotAutoplayEnabled, setSpotAutoplayEnabled] = useState(() => !window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const [spotInteractionPaused, setSpotInteractionPaused] = useState(false);
+  const spotCarouselRef = useRef<HTMLDivElement | null>(null);
+  const spotScrollFrameRef = useRef<number | null>(null);
   const plan = plans[planId] || Object.values(plans)[0];
+
+  useEffect(() => {
+    const viewport = spotCarouselRef.current;
+    if (!viewport) return;
+    const syncLayout = () => {
+      const cards = Array.from(viewport.querySelectorAll<HTMLElement>('.spot-card'));
+      if (!cards.length) return;
+      const cardWidth = cards[0].offsetWidth || viewport.clientWidth;
+      const count = Math.max(1, Math.round(viewport.clientWidth / cardWidth));
+      setVisibleSpotCount(count);
+      setSpotIndex((current) => {
+        const next = Math.min(current, Math.max(0, cards.length - count));
+        requestAnimationFrame(() => viewport.scrollTo({ left: cards[next]?.offsetLeft || 0 }));
+        return next;
+      });
+    };
+    const resizeObserver = new ResizeObserver(syncLayout);
+    resizeObserver.observe(viewport);
+    syncLayout();
+    return () => {
+      resizeObserver.disconnect();
+      if (spotScrollFrameRef.current !== null) cancelAnimationFrame(spotScrollFrameRef.current);
+    };
+  }, [spots.length]);
+
+  const moveSpots = useCallback((direction: -1 | 1) => {
+    const viewport = spotCarouselRef.current;
+    if (!viewport) return;
+    const cards = Array.from(viewport.querySelectorAll<HTMLElement>('.spot-card'));
+    if (!cards.length) return;
+    setSpotIndex((current) => {
+      const lastStart = Math.max(0, cards.length - visibleSpotCount);
+      let next = current + direction * visibleSpotCount;
+      if (next > lastStart) next = 0;
+      if (next < 0) next = lastStart;
+      viewport.scrollTo({ left: cards[next].offsetLeft, behavior: 'smooth' });
+      return next;
+    });
+  }, [visibleSpotCount]);
+
+  useEffect(() => {
+    if (!spotAutoplayEnabled || spotInteractionPaused || spots.length <= visibleSpotCount) return;
+    const timer = window.setInterval(() => moveSpots(1), 3000);
+    return () => window.clearInterval(timer);
+  }, [moveSpots, spotAutoplayEnabled, spotInteractionPaused, spots.length, visibleSpotCount]);
+
+  const syncSpotIndex = () => {
+    const viewport = spotCarouselRef.current;
+    if (!viewport) return;
+    if (spotScrollFrameRef.current !== null) cancelAnimationFrame(spotScrollFrameRef.current);
+    spotScrollFrameRef.current = requestAnimationFrame(() => {
+      const cards = Array.from(viewport.querySelectorAll<HTMLElement>('.spot-card'));
+      if (!cards.length) return;
+      const nextIndex = cards.reduce((closest, card, index) => (
+        Math.abs(card.offsetLeft - viewport.scrollLeft) < Math.abs(cards[closest].offsetLeft - viewport.scrollLeft)
+          ? index : closest
+      ), 0);
+      setSpotIndex(Math.min(nextIndex, Math.max(0, cards.length - visibleSpotCount)));
+    });
+  };
+  const visibleSpotEnd = Math.min(spots.length, spotIndex + visibleSpotCount);
+  const spotPositionLabel = visibleSpotCount === 1
+    ? `${String(spotIndex + 1).padStart(2, '0')} / ${String(spots.length).padStart(2, '0')}`
+    : `${String(spotIndex + 1).padStart(2, '0')}–${String(visibleSpotEnd).padStart(2, '0')} / ${String(spots.length).padStart(2, '0')}`;
   return <section className="nearby-section" id="nearby">
-    <div className="section-kicker"><span>03</span><small>EXPLORE WITHIN 100 KM</small></div>
+    <div className="section-kicker"><span>03</span><small>FEATURED TRIPS FROM NANPO</small></div>
     <div className="nearby-head">
-      <div><span>从南坡，再走远一点</span><h2>以村庄为圆心，<br/>打开百公里山河。</h2></div>
+      <div><span>特色周边游</span><h2>以村庄为圆心，<br/>打开周边游玩路线。</h2></div>
       <div className="radius-note"><span className="radius-rings"><i/><i/><i/><b>南坡</b></span><p><strong>100 km</strong> 旅行生活圈<small>所有目的地均按从大南坡村出发估算</small></p></div>
     </div>
 
-    {spots.length ? <div className="nearby-spots">
-      {spots.map((spot, index) => <article key={spot.name} className={`spot-card ${spot.tone}`}><Image className="spot-bg" src={spot.image} alt={`${spot.name}实景`} fill sizes="(max-width: 760px) 100vw, 33vw" />
-        <header><span>{spot.mark}</span><small>0{index + 1} · {spot.type}</small></header>
-        <h3>{spot.name}</h3><p>{spot.desc}</p><ul>{spot.highlights.map(item => <li key={item}>{item}</li>)}</ul>
-        <div><strong>{spot.range}</strong><small>{spot.time}</small><a href={spot.map} target="_blank" rel="noreferrer" aria-label={`在地图中查看${spot.name}`}>地图导航 ↗</a></div>
-      </article>)}
-    </div> : <EmptyState label="周边景点"/>}
+    {spots.length ? <div className="nearby-carousel" onTouchStart={() => setSpotInteractionPaused(true)} onTouchEnd={() => setSpotInteractionPaused(false)} onFocusCapture={() => setSpotInteractionPaused(true)} onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setSpotInteractionPaused(false); }}>
+      <div className="nearby-carousel-toolbar"><span>每 3 秒自动切换，也可横向滑动</span><div><b aria-live="polite" aria-atomic="true">{spotPositionLabel}</b><button type="button" onClick={() => setSpotAutoplayEnabled((current) => !current)} aria-label={spotAutoplayEnabled ? '暂停自动轮播' : '继续自动轮播'}>{spotAutoplayEnabled ? 'Ⅱ' : '▶'}</button><button type="button" onClick={() => moveSpots(-1)} aria-label="上一组周边景点">←</button><button type="button" onClick={() => moveSpots(1)} aria-label="下一组周边景点">→</button></div></div>
+      <div className="nearby-spots" ref={spotCarouselRef} onScroll={syncSpotIndex} tabIndex={0} role="region" aria-roledescription="轮播" aria-label="特色周边景点" onKeyDown={(event) => { if (event.key === 'ArrowLeft') { event.preventDefault(); moveSpots(-1); } else if (event.key === 'ArrowRight') { event.preventDefault(); moveSpots(1); } }}>
+        {spots.map((spot, index) => <article key={spot.name} className={`spot-card ${spot.tone}`}><Image className="spot-bg" src={spot.image} alt={`${spot.name}实景`} fill sizes="(max-width: 760px) 100vw, (max-width: 1050px) 50vw, 33vw" />
+          <header><span>{spot.mark}</span><small>{String(index + 1).padStart(2, '0')} · {spot.type}</small></header>
+          <h3>{spot.name}</h3><p>{spot.desc}</p><ul>{spot.highlights.map(item => <li key={item}>{item}</li>)}</ul>
+          <div><strong>{spot.range}</strong><small>{spot.time}</small><a href={spot.map} target="_blank" rel="noreferrer" aria-label={`在地图中查看${spot.name}`}>地图导航 ↗</a></div>
+        </article>)}
+      </div>
+    </div> : <EmptyState label="特色周边景点"/>}
 
     {plan ? <div className="plan-studio">
       <div className="plan-aside">
@@ -449,14 +628,28 @@ function CheckoutFlow({ product, onClose, onLogin }: { product: ProductCard; onC
   const [detail,setDetail]=useState<ProductDetail|null>(null);
   const [order,setOrder]=useState<Order|null>(null);
   const [busy,setBusy]=useState(false);
+  const [loadingDetail,setLoadingDetail]=useState(true);
   const [error,setError]=useState('');
   const [needsLogin,setNeedsLogin]=useState(false);
+  const [staleProduct,setStaleProduct]=useState(false);
   const [idempotencyKey]=useState(()=>`checkout-${crypto.randomUUID()}`);
-  useEffect(()=>{if(product.id){loadPublicProduct(product.id).then(setDetail).catch((reason)=>setError(reason instanceof ApiError?reason.message:'商品规格加载失败'))}},[product.id]);
-  const submit=async(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();const sku=detail?.skus[0];if(!sku){setError('当前农品没有可售规格');return}const form=new FormData(event.currentTarget);setBusy(true);setError('');try{const created=await createOrder({recipientName:String(form.get('recipientName')),recipientPhone:String(form.get('recipientPhone')),recipientAddress:String(form.get('recipientAddress')),customerNote:String(form.get('customerNote')||''),items:[{skuId:sku.id,quantity:1}]},idempotencyKey);setOrder(created);setStep('pay')}catch(reason){if(reason instanceof ApiError&&reason.status===401){setNeedsLogin(true);setError('请先使用手机号登录，再提交订单')}else{setError(reason instanceof ApiError?reason.message:'订单创建失败')}}finally{setBusy(false)}};
+  const loadDetail=useCallback(async()=>{
+    setLoadingDetail(true);setDetail(null);setError('');setNeedsLogin(false);setStaleProduct(false);
+    if(!product.id){setError('该商品已下架或商品列表已更新，请刷新商品列表后再试');setStaleProduct(true);setLoadingDetail(false);return}
+    try{
+      const loaded=await loadPublicProduct(product.id);
+      setDetail(loaded);
+      if(!loaded.skus.length)setError('当前商品暂时没有可售规格，请稍后再试');
+    }catch(reason){
+      if(reason instanceof ApiError&&reason.status===404){setStaleProduct(true);setError('该商品已下架或商品列表已更新，请刷新商品列表后再试')}
+      else setError(reason instanceof ApiError?reason.message:'商品规格加载失败，请稍后重试');
+    }finally{setLoadingDetail(false)}
+  },[product.id]);
+  useEffect(()=>{void loadDetail()},[loadDetail]);
+  const submit=async(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();const sku=detail?.skus[0];if(!sku){setError('当前商品暂时没有可售规格，请稍后再试');return}const form=new FormData(event.currentTarget);setBusy(true);setError('');setNeedsLogin(false);try{const created=await createOrder({recipientName:String(form.get('recipientName')),recipientPhone:String(form.get('recipientPhone')),recipientAddress:String(form.get('recipientAddress')),customerNote:String(form.get('customerNote')||''),items:[{skuId:sku.id,quantity:1}]},idempotencyKey);setOrder(created);setStep('pay')}catch(reason){if(reason instanceof ApiError&&reason.status===401){setNeedsLogin(true);setError('请先使用手机号登录，再提交订单')}else{setError(reason instanceof ApiError?reason.message:'订单创建失败')}}finally{setBusy(false)}};
   const report=async()=>{if(!order)return;setBusy(true);setError('');try{const updated=await reportOrderPayment(order.orderNo,`${order.recipientPhone.slice(-4)} ${product.name}`);setOrder(updated);setStep('done')}catch(reason){setError(reason instanceof ApiError?reason.message:'转账报告提交失败')}finally{setBusy(false)}};
   const price=order?`¥ ${Number(order.totalAmount).toFixed(2)}`:product.price.replace(' 起','');
-  return <div className="modal-backdrop checkout-backdrop"><section className="checkout-modal"><header><div><small>ORDER WORKFLOW</small><h2>{step==='form'?'提交购买信息':step==='pay'?'扫码转账':'等待后台核款'}</h2></div><button onClick={onClose}>×</button></header><div className="checkout-steps"><span className="active">1 创建订单</span><i/><span className={step!=='form'?'active':''}>2 报告转账</span><i/><span className={step==='done'?'active':''}>3 人工核款</span></div>{error&&<div className="login-error" role="alert">{error}{needsLogin&&<button onClick={onLogin}>去登录</button>}</div>}{step==='form'&&<form onSubmit={submit}><div className="order-product"><span>{product.name.slice(0,1)}</span><div><strong>{product.name}</strong><small>{detail?.skus[0]?.specification||'正在读取规格…'}</small></div><b>{price}</b></div><label>收货人<input name="recipientName" required maxLength={100} placeholder="请输入姓名"/></label><label>联系电话<input name="recipientPhone" required pattern="1\d{10}" inputMode="tel" placeholder="11 位手机号"/></label><label>收货地址<textarea name="recipientAddress" required maxLength={500} placeholder="省 / 市 / 区县 / 街道及详细地址"/></label><label>备注<input name="customerNote" maxLength={500} placeholder="可选"/></label><div className="checkout-notice">后端会生成唯一订单号、锁定价格和收款配置；重复点击使用同一幂等键，不会重复建单。</div><button className="checkout-primary" disabled={busy||!detail} type="submit">{busy?'正在创建订单…':'确认信息，下一步 →'}</button></form>}{step==='pay'&&order&&<div className="pay-panel">{order.payment.demo&&<span className="demo-label">本地演示</span>}<DemoQr/><h3>请转账 {price}</h3><p>收款方：{order.payment.payeeName}<br/>转账备注：{order.recipientPhone.slice(-4)} {product.name}<br/>订单号：{order.orderNo}</p>{order.payment.demo&&<div className="pay-warning">此为演示收款配置，不可用于真实支付</div>}<button className="checkout-primary" disabled={busy} onClick={report}>{busy?'正在提交…':'我已完成转账'}</button></div>}{step==='done'&&order&&<div className="order-success"><span>✓</span><h3>转账报告已留痕</h3><p>订单号 {order.orderNo}<br/>当前状态：{order.status}。运营人员核对实际到账后，才会通知农户备货。</p><button className="checkout-primary" onClick={onClose}>完成</button></div>}<footer>村庄统一受理 · 人工核款 · 农户备货 · 统一发货</footer></section></div>;
+  return <div className="modal-backdrop checkout-backdrop"><section className="checkout-modal"><header><div><small>ORDER WORKFLOW</small><h2>{step==='form'?'提交购买信息':step==='pay'?'扫码转账':'等待后台核款'}</h2></div><button onClick={onClose}>×</button></header><div className="checkout-steps"><span className="active">1 创建订单</span><i/><span className={step!=='form'?'active':''}>2 报告转账</span><i/><span className={step==='done'?'active':''}>3 人工核款</span></div>{error&&<div className="login-error checkout-error" role="alert"><span>{error}</span>{needsLogin&&<button onClick={onLogin}>去登录</button>}{staleProduct&&<button onClick={()=>window.location.reload()}>刷新商品</button>}{!needsLogin&&!staleProduct&&!detail&&<button onClick={()=>void loadDetail()}>重新加载</button>}</div>}{step==='form'&&<form onSubmit={submit}><div className="order-product"><span>{product.name.slice(0,1)}</span><div><strong>{product.name}</strong><small>{loadingDetail?'正在读取规格…':detail?.skus[0]?.specification||'暂无可售规格'}</small></div><b>{price}</b></div><label>收货人<input name="recipientName" required maxLength={100} placeholder="请输入姓名"/></label><label>联系电话<input name="recipientPhone" required pattern="1\d{10}" inputMode="tel" placeholder="11 位手机号"/></label><label>收货地址<textarea name="recipientAddress" required maxLength={500} placeholder="省 / 市 / 区县 / 街道及详细地址"/></label><label>备注<input name="customerNote" maxLength={500} placeholder="可选"/></label><div className="checkout-notice">后端会生成唯一订单号、锁定价格和收款配置；重复点击使用同一幂等键，不会重复建单。</div><button className="checkout-primary" disabled={busy||loadingDetail||!detail||!detail.skus.length} type="submit">{busy?'正在创建订单…':loadingDetail?'正在读取规格…':'确认信息，下一步 →'}</button></form>}{step==='pay'&&order&&<div className="pay-panel">{order.payment.demo&&<span className="demo-label">本地演示</span>}<DemoQr/><h3>请转账 {price}</h3><p>收款方：{order.payment.payeeName}<br/>转账备注：{order.recipientPhone.slice(-4)} {product.name}<br/>订单号：{order.orderNo}</p>{order.payment.demo&&<div className="pay-warning">此为演示收款配置，不可用于真实支付</div>}<button className="checkout-primary" disabled={busy} onClick={report}>{busy?'正在提交…':'我已完成转账'}</button></div>}{step==='done'&&order&&<div className="order-success"><span>✓</span><h3>转账报告已留痕</h3><p>订单号 {order.orderNo}<br/>当前状态：{order.status}。运营人员核对实际到账后，才会通知农户备货。</p><button className="checkout-primary" onClick={onClose}>完成</button></div>}<footer>村庄统一受理 · 人工核款 · 农户备货 · 统一发货</footer></section></div>;
 }
 
 export function FarmerPortal({ onExit }: { onExit: () => void }) {

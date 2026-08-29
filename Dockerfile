@@ -5,6 +5,11 @@ WORKDIR /workspace
 ARG NPM_REGISTRY=https://registry.npmmirror.com
 ARG NODE_DOWNLOAD_ROOT=https://npmmirror.com/mirrors/node/
 ARG MAVEN_MIRROR_URL=https://maven.aliyun.com/repository/public
+ARG VITE_AMAP_WEB_KEY=
+ARG VITE_AMAP_SECURITY_CODE=
+
+ENV VITE_AMAP_WEB_KEY=${VITE_AMAP_WEB_KEY} \
+    VITE_AMAP_SECURITY_CODE=${VITE_AMAP_SECURITY_CODE}
 
 COPY . .
 RUN mvn -B -s docker/maven-settings.xml \

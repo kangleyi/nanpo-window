@@ -144,7 +144,7 @@ public class FarmerWorkspaceRepository {
                 .list();
         return products.stream().map(product -> new ProductManageView(
                 product.id(), product.plotId(), product.name(), product.category(), product.season(),
-                product.summary(), product.coverUrl(), product.status(), findSkus(product.id()),
+                product.summary(), product.coverUrl(), findProductImages(product.id()), product.status(), findSkus(product.id()),
                 product.recordCount(), product.updatedAt())).toList();
     }
 
@@ -175,10 +175,11 @@ public class FarmerWorkspaceRepository {
             statement.setString(4, command.category());
             statement.setString(5, command.season());
             statement.setString(6, command.summary());
-            statement.setString(7, command.coverUrl());
+            statement.setString(7, productImages(command).getFirst());
             return statement;
         }, keys);
         long productId = keys.getKey().longValue();
+        replaceProductImages(productId, productImages(command));
         for (SkuCommand sku : command.skus()) {
             String code = nextSkuCode(productId);
             jdbc.sql("""
@@ -209,13 +210,14 @@ public class FarmerWorkspaceRepository {
                 .param("category", command.category())
                 .param("season", command.season())
                 .param("summary", command.summary())
-                .param("coverUrl", command.coverUrl())
+                .param("coverUrl", productImages(command).getFirst())
                 .param("productId", productId)
                 .param("farmerId", farmerId)
                 .update();
         if (updated == 0) {
             return false;
         }
+        replaceProductImages(productId, productImages(command));
         jdbc.sql("UPDATE product_sku SET enabled = FALSE, updated_at = CURRENT_TIMESTAMP WHERE product_id = :productId")
                 .param("productId", productId)
                 .update();
@@ -248,6 +250,40 @@ public class FarmerWorkspaceRepository {
             }
         }
         return true;
+    }
+
+    private List<String> findProductImages(long productId) {
+        return jdbc.sql("""
+                        SELECT image_url
+                        FROM product_image
+                        WHERE product_id = :productId
+                        ORDER BY sort_order, id
+                        """)
+                .param("productId", productId)
+                .query(String.class)
+                .list();
+    }
+
+    private List<String> productImages(ProductCommand command) {
+        return command.imageUrls() == null || command.imageUrls().isEmpty()
+                ? List.of(command.coverUrl())
+                : command.imageUrls().stream().distinct().toList();
+    }
+
+    private void replaceProductImages(long productId, List<String> imageUrls) {
+        jdbc.sql("DELETE FROM product_image WHERE product_id = :productId")
+                .param("productId", productId)
+                .update();
+        for (int index = 0; index < imageUrls.size(); index++) {
+            jdbc.sql("""
+                            INSERT INTO product_image (product_id, image_url, sort_order)
+                            VALUES (:productId, :imageUrl, :sortOrder)
+                            """)
+                    .param("productId", productId)
+                    .param("imageUrl", imageUrls.get(index))
+                    .param("sortOrder", index)
+                    .update();
+        }
     }
 
     private String nextSkuCode(long productId) {

@@ -15,6 +15,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import cn.nanpo.window.api.publiccontent.PublicViews.AttractionView;
 import cn.nanpo.window.api.publiccontent.PublicViews.ContactView;
+import cn.nanpo.window.api.publiccontent.PublicViews.GoodsSectionView;
 import cn.nanpo.window.api.publiccontent.PublicViews.ExperienceView;
 import cn.nanpo.window.api.publiccontent.PublicViews.FarmRecordView;
 import cn.nanpo.window.api.publiccontent.PublicViews.FarmerDetailView;
@@ -54,7 +55,9 @@ public class PublicCatalogRepository {
     public Optional<SiteView> findPublishedSite() {
         Optional<SiteRow> site = jdbc.sql("""
                         SELECT id, name, province, city, county, address, summary,
-                               map_keyword, recommended_season
+                               map_keyword, recommended_season, goods_eyebrow, goods_title,
+                               goods_description, goods_season_label, goods_season_note,
+                               goods_image_url, goods_image_caption
                         FROM site_profile
                         WHERE status = 'PUBLISHED'
                         ORDER BY published_at DESC, id DESC
@@ -69,7 +72,14 @@ public class PublicCatalogRepository {
                         rs.getString("address"),
                         rs.getString("summary"),
                         rs.getString("map_keyword"),
-                        rs.getString("recommended_season")))
+                        rs.getString("recommended_season"),
+                        rs.getString("goods_eyebrow"),
+                        rs.getString("goods_title"),
+                        rs.getString("goods_description"),
+                        rs.getString("goods_season_label"),
+                        rs.getString("goods_season_note"),
+                        rs.getString("goods_image_url"),
+                        rs.getString("goods_image_caption")))
                 .optional();
         if (site.isEmpty()) {
             return Optional.empty();
@@ -96,7 +106,10 @@ public class PublicCatalogRepository {
                 .orElse(null);
         return Optional.of(new SiteView(
                 value.id(), value.name(), value.province(), value.city(), value.county(),
-                value.address(), value.summary(), value.mapKeyword(), value.recommendedSeason(), contact));
+                value.address(), value.summary(), value.mapKeyword(), value.recommendedSeason(), contact,
+                new GoodsSectionView(value.goodsEyebrow(), value.goodsTitle(), value.goodsDescription(),
+                        value.goodsSeasonLabel(), value.goodsSeasonNote(), value.goodsImageUrl(),
+                        value.goodsImageCaption())));
     }
 
     public List<TravelRouteView> findTravelRoutes() {
@@ -331,9 +344,23 @@ public class PublicCatalogRepository {
                 rs.getString("season_text"),
                 rs.getString("summary"),
                 rs.getString("cover_url"),
+                findProductImages(rs.getLong("id"), rs.getString("cover_url")),
                 startingPrice,
                 rs.getString("farmer_name"),
                 rs.getLong("farmer_id"));
+    }
+
+    private List<String> findProductImages(long productId, String coverUrl) {
+        List<String> images = jdbc.sql("""
+                        SELECT image_url
+                        FROM product_image
+                        WHERE product_id = :productId
+                        ORDER BY sort_order, id
+                        """)
+                .param("productId", productId)
+                .query(String.class)
+                .list();
+        return images.isEmpty() ? List.of(coverUrl) : images;
     }
 
     private long count(String sql) {
@@ -372,6 +399,13 @@ public class PublicCatalogRepository {
             String address,
             String summary,
             String mapKeyword,
-            String recommendedSeason) {
+            String recommendedSeason,
+            String goodsEyebrow,
+            String goodsTitle,
+            String goodsDescription,
+            String goodsSeasonLabel,
+            String goodsSeasonNote,
+            String goodsImageUrl,
+            String goodsImageCaption) {
     }
 }

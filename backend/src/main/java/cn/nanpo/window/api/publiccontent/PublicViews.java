@@ -12,6 +12,16 @@ public final class PublicViews {
     public record ContactView(String scene, String name, String phone, String businessHours) {
     }
 
+    public record GoodsSectionView(
+            String eyebrow,
+            String title,
+            String description,
+            String seasonLabel,
+            String seasonNote,
+            String imageUrl,
+            String imageCaption) {
+    }
+
     public record SiteView(
             long id,
             String name,
@@ -22,7 +32,8 @@ public final class PublicViews {
             String summary,
             String mapKeyword,
             String recommendedSeason,
-            ContactView visitorService) {
+            ContactView visitorService,
+            GoodsSectionView goodsSection) {
     }
 
     public record TravelRouteView(
@@ -96,6 +107,7 @@ public final class PublicViews {
             String season,
             String summary,
             String coverUrl,
+            List<String> imageUrls,
             BigDecimal startingPrice,
             String farmerName,
             long farmerId) {

@@ -104,6 +104,28 @@ public final class AdminContentViews {
             LocalDateTime updatedAt) {
     }
 
+    public record GoodsSectionCommand(
+            @NotBlank @Size(max = 80) String eyebrow,
+            @NotBlank @Size(max = 255) String title,
+            @NotBlank @Size(max = 1000) String description,
+            @NotBlank @Size(max = 50) String seasonLabel,
+            @NotBlank @Size(max = 255) String seasonNote,
+            @NotBlank @Size(max = 500) String imageUrl,
+            @NotBlank @Size(max = 160) String imageCaption) {
+    }
+
+    public record GoodsSectionAdminView(
+            long siteId,
+            String eyebrow,
+            String title,
+            String description,
+            String seasonLabel,
+            String seasonNote,
+            String imageUrl,
+            String imageCaption,
+            LocalDateTime updatedAt) {
+    }
+
     public record ContentStatusView(long id, String kind, String status, LocalDateTime publishedAt) {
     }
 }

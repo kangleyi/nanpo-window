@@ -22,6 +22,8 @@ import cn.nanpo.window.api.admin.AdminContentViews.ExperienceAdminView;
 import cn.nanpo.window.api.admin.AdminContentViews.ExperienceCommand;
 import cn.nanpo.window.api.admin.AdminContentViews.HomestayAdminView;
 import cn.nanpo.window.api.admin.AdminContentViews.HomestayCommand;
+import cn.nanpo.window.api.admin.AdminContentViews.GoodsSectionAdminView;
+import cn.nanpo.window.api.admin.AdminContentViews.GoodsSectionCommand;
 
 @Repository
 public class ContentAdminRepository {
@@ -56,6 +58,44 @@ public class ContentAdminRepository {
                         rs.getString("status"), localDateTime(rs.getTimestamp("published_at")),
                         localDateTime(rs.getTimestamp("updated_at"))))
                 .list();
+    }
+
+    public Optional<GoodsSectionAdminView> findGoodsSection() {
+        return jdbc.sql("""
+                        SELECT id, goods_eyebrow, goods_title, goods_description,
+                               goods_season_label, goods_season_note, goods_image_url,
+                               goods_image_caption, updated_at
+                        FROM site_profile
+                        WHERE status = 'PUBLISHED'
+                        ORDER BY published_at DESC, id DESC
+                        LIMIT 1
+                        """)
+                .query((rs, rowNum) -> new GoodsSectionAdminView(
+                        rs.getLong("id"), rs.getString("goods_eyebrow"), rs.getString("goods_title"),
+                        rs.getString("goods_description"), rs.getString("goods_season_label"),
+                        rs.getString("goods_season_note"), rs.getString("goods_image_url"),
+                        rs.getString("goods_image_caption"), localDateTime(rs.getTimestamp("updated_at"))))
+                .optional();
+    }
+
+    public int updateGoodsSection(long siteId, GoodsSectionCommand command) {
+        return jdbc.sql("""
+                        UPDATE site_profile
+                        SET goods_eyebrow = :eyebrow, goods_title = :title,
+                            goods_description = :description, goods_season_label = :seasonLabel,
+                            goods_season_note = :seasonNote, goods_image_url = :imageUrl,
+                            goods_image_caption = :imageCaption, updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :siteId AND status = 'PUBLISHED'
+                        """)
+                .param("eyebrow", command.eyebrow())
+                .param("title", command.title())
+                .param("description", command.description())
+                .param("seasonLabel", command.seasonLabel())
+                .param("seasonNote", command.seasonNote())
+                .param("imageUrl", command.imageUrl())
+                .param("imageCaption", command.imageCaption())
+                .param("siteId", siteId)
+                .update();
     }
 
     public long countHomestays(String status) {

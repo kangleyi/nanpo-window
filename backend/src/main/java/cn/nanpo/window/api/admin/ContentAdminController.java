@@ -17,6 +17,8 @@ import cn.nanpo.window.api.admin.AdminContentViews.ExperienceAdminView;
 import cn.nanpo.window.api.admin.AdminContentViews.ExperienceCommand;
 import cn.nanpo.window.api.admin.AdminContentViews.HomestayAdminView;
 import cn.nanpo.window.api.admin.AdminContentViews.HomestayCommand;
+import cn.nanpo.window.api.admin.AdminContentViews.GoodsSectionAdminView;
+import cn.nanpo.window.api.admin.AdminContentViews.GoodsSectionCommand;
 import cn.nanpo.window.application.ContentAdminService;
 import cn.nanpo.window.common.api.ApiResponse;
 import cn.nanpo.window.common.api.PageResponse;
@@ -32,6 +34,19 @@ public class ContentAdminController {
 
     public ContentAdminController(ContentAdminService service) {
         this.service = service;
+    }
+
+    @GetMapping("/site-sections/goods")
+    public ApiResponse<GoodsSectionAdminView> goodsSection() {
+        return ApiResponse.success(service.goodsSection());
+    }
+
+    @PutMapping("/site-sections/goods")
+    public ApiResponse<GoodsSectionAdminView> updateGoodsSection(
+            @Valid @RequestBody GoodsSectionCommand command,
+            @AuthenticationPrincipal UserPrincipal actor,
+            HttpServletRequest request) {
+        return ApiResponse.success(service.updateGoodsSection(command, actor, clientIp(request)));
     }
 
     @GetMapping("/homestays")

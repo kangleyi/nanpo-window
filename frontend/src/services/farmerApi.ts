@@ -27,6 +27,7 @@ export type FarmerProduct = {
   season: string;
   summary: string;
   coverUrl: string;
+  imageUrls: string[];
   status: string;
   skus: FarmerSku[];
   recordCount: number;

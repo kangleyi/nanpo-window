@@ -69,6 +69,7 @@ public final class FarmerViews {
             @NotBlank @Size(max = 100) String season,
             @NotBlank @Size(max = 2000) String summary,
             @NotBlank @Size(max = 500) String coverUrl,
+            @Size(max = 10) List<@NotBlank @Size(max = 500) String> imageUrls,
             @NotEmpty @Size(max = 20) List<@Valid SkuCommand> skus) {
     }
 
@@ -80,6 +81,7 @@ public final class FarmerViews {
             String season,
             String summary,
             String coverUrl,
+            List<String> imageUrls,
             String status,
             List<SkuManageView> skus,
             long recordCount,

@@ -10,6 +10,8 @@ import cn.nanpo.window.api.admin.AdminContentViews.ExperienceAdminView;
 import cn.nanpo.window.api.admin.AdminContentViews.ExperienceCommand;
 import cn.nanpo.window.api.admin.AdminContentViews.HomestayAdminView;
 import cn.nanpo.window.api.admin.AdminContentViews.HomestayCommand;
+import cn.nanpo.window.api.admin.AdminContentViews.GoodsSectionAdminView;
+import cn.nanpo.window.api.admin.AdminContentViews.GoodsSectionCommand;
 import cn.nanpo.window.common.api.PageResponse;
 import cn.nanpo.window.common.error.ApiException;
 import cn.nanpo.window.common.error.ErrorCode;
@@ -26,6 +28,21 @@ public class ContentAdminService {
     public ContentAdminService(ContentAdminRepository repository, AuditService auditService) {
         this.repository = repository;
         this.auditService = auditService;
+    }
+
+    @Transactional(readOnly = true)
+    public GoodsSectionAdminView goodsSection() {
+        return repository.findGoodsSection()
+                .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND, "尚未配置已发布的村庄主页"));
+    }
+
+    @Transactional
+    public GoodsSectionAdminView updateGoodsSection(
+            GoodsSectionCommand command, UserPrincipal actor, String ipAddress) {
+        GoodsSectionAdminView current = goodsSection();
+        repository.updateGoodsSection(current.siteId(), command);
+        auditService.record(actor.id(), "CONTENT_UPDATE", "GOODS_SECTION", String.valueOf(current.siteId()), ipAddress);
+        return repository.findGoodsSection().orElseThrow();
     }
 
     @Transactional(readOnly = true)

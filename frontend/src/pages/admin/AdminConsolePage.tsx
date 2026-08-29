@@ -5,6 +5,8 @@ import {
   ConsultationInquiry,
   ContentCommand,
   ContentKind,
+  GoodsSectionCommand,
+  GoodsSectionSettings,
   createFarmerRecord,
   createFarmerProduct,
   createManagedContent,
@@ -13,6 +15,7 @@ import {
   loadFarmerProducts,
   loadFarmers,
   loadFarmReviewQueue,
+  loadGoodsSectionSettings,
   loadManagedContent,
   ManagedContent,
   markAdminOrderReady,
@@ -25,15 +28,17 @@ import {
   submitFarmerRecord,
   updateFarmerProduct,
   updateConsultationInquiryStatus,
+  updateGoodsSectionSettings,
   updateManagedContent,
 } from '../../services/adminApi';
 import { MediaUploadField } from '../../components/MediaUploadField';
+import { ProductImageUploadField } from '../../components/ProductImageUploadField';
 import { ApiError, openProtectedMedia } from '../../services/api';
 import { logout } from '../../services/authApi';
 import { FarmerProduct, FarmerProfile, FarmRecord, uploadRecordMedia } from '../../services/farmerApi';
 import { Order } from '../../services/orderApi';
 
-type AdminSection = 'orders' | 'products' | 'reviews' | 'inquiries' | ContentKind;
+type AdminSection = 'orders' | 'products' | 'reviews' | 'inquiries' | 'goodsSection' | ContentKind;
 type SkuDraft = { key: string; id?: number; code?: string; specification: string; unitPrice: string; stockNote: string };
 
 const emptySkuDraft = (): SkuDraft => ({
@@ -56,6 +61,7 @@ export function AdminConsolePage({ onExit }: { onExit: () => void }) {
   const [inquiries, setInquiries] = useState<ConsultationInquiry[]>([]);
   const [farmers, setFarmers] = useState<FarmerProfile[]>([]);
   const [products, setProducts] = useState<FarmerProduct[]>([]);
+  const [goodsSection, setGoodsSection] = useState<GoodsSectionSettings | null>(null);
   const [selectedFarmerId, setSelectedFarmerId] = useState(0);
   const [orderStatus, setOrderStatus] = useState('ALL');
   const [inquiryStatus, setInquiryStatus] = useState('ALL');
@@ -105,6 +111,9 @@ export function AdminConsolePage({ onExit }: { onExit: () => void }) {
       loadFarmerProducts(selectedFarmerId)
         .then(setProducts)
         .catch((reason) => setError(reason instanceof ApiError ? reason.message : '农产品加载失败'));
+    } else if (section === 'goodsSection') {
+      loadGoodsSectionSettings().then(setGoodsSection)
+        .catch((reason) => setError(reason instanceof ApiError ? reason.message : '好物版块配置加载失败'));
     } else {
       loadManagedContent(section).then((page) => setItems(page.items))
         .catch((reason) => setError(reason instanceof ApiError ? reason.message : '内容加载失败'));
@@ -132,7 +141,7 @@ export function AdminConsolePage({ onExit }: { onExit: () => void }) {
 
   const saveContent = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (section === 'reviews' || section === 'orders' || section === 'products' || section === 'inquiries') return;
+    if (section === 'reviews' || section === 'orders' || section === 'products' || section === 'inquiries' || section === 'goodsSection') return;
     const form = new FormData(event.currentTarget);
     const coverUrl = String(form.get('coverUrl') || '');
     if (!coverUrl) {
@@ -166,6 +175,29 @@ export function AdminConsolePage({ onExit }: { onExit: () => void }) {
     } finally { setBusy(false); }
   };
 
+  const saveGoodsSection = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const imageUrl = String(form.get('imageUrl') || '');
+    if (!imageUrl) { setError('请先上传版块展示图片'); return; }
+    const command: GoodsSectionCommand = {
+      eyebrow: String(form.get('eyebrow') || '').trim(),
+      title: String(form.get('title') || '').trim(),
+      description: String(form.get('description') || '').trim(),
+      seasonLabel: String(form.get('seasonLabel') || '').trim(),
+      seasonNote: String(form.get('seasonNote') || '').trim(),
+      imageUrl,
+      imageCaption: String(form.get('imageCaption') || '').trim(),
+    };
+    setBusy(true); setError('');
+    try {
+      const updated = await updateGoodsSectionSettings(command);
+      setGoodsSection(updated); notify('好物版块已保存并发布');
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : '好物版块保存失败');
+    } finally { setBusy(false); }
+  };
+
   const saveProduct = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!selectedFarmerId) return;
@@ -181,12 +213,12 @@ export function AdminConsolePage({ onExit }: { onExit: () => void }) {
         return { id: draft.id, specification, unitPrice, stockNote };
       });
       if (!skus.length) throw new Error('至少填写一个可售规格');
-      const coverUrl = String(form.get('coverUrl') || '');
-      if (!coverUrl) throw new Error('请先上传农产品封面图片');
+      const imageUrls = form.getAll('imageUrls').map(String).filter(Boolean);
+      if (!imageUrls.length) throw new Error('请至少上传一张农产品图片');
       const command: ProductCommand = {
         name: String(form.get('name')), category: String(form.get('category')),
         season: String(form.get('season')), summary: String(form.get('summary')),
-        coverUrl, skus,
+        coverUrl: imageUrls[0], imageUrls, skus,
       };
       setBusy(true);
       if (editingProduct) {
@@ -263,7 +295,7 @@ export function AdminConsolePage({ onExit }: { onExit: () => void }) {
   };
 
   const toggleContentPublished = async (item: ManagedContent) => {
-    if (section === 'reviews' || section === 'orders' || section === 'products' || section === 'inquiries') return;
+    if (section === 'reviews' || section === 'orders' || section === 'products' || section === 'inquiries' || section === 'goodsSection') return;
     setBusy(true);
     try {
       await setManagedContentPublished(section, item.id, item.status !== 'PUBLISHED');
@@ -367,13 +399,14 @@ export function AdminConsolePage({ onExit }: { onExit: () => void }) {
 
   const title = section === 'orders' ? '订单履约' : section === 'products' ? '农产品管理'
     : section === 'reviews' ? '生产记录审核' : section === 'inquiries' ? '咨询留言'
-      : section === 'homestays' ? '民宿管理' : '游玩采摘管理';
+      : section === 'goodsSection' ? '好物版块设置' : section === 'homestays' ? '民宿管理' : '游玩采摘管理';
   const defaultOccurredAt = new Date(Date.now() - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 
   return <main className="admin-shell">
     <aside className="admin-sidebar"><div className="brand admin-brand"><span className="brand-seal">乡</span><span><b>乡见西村</b><small>村庄运营中心</small></span></div><nav>
       <button className={section==='orders'?'active':''} onClick={()=>setSection('orders')}>单 <span>订单履约</span></button>
       <button className={section==='products'?'active':''} onClick={()=>setSection('products')}>品 <span>农产品管理</span></button>
+      <button className={section==='goodsSection'?'active':''} onClick={()=>setSection('goodsSection')}>展 <span>好物版块</span></button>
       <button className={section==='reviews'?'active':''} onClick={()=>setSection('reviews')}>田 <span>生产记录审核</span>{reviews.length>0&&<i className="alert-badge">{reviews.length}</i>}</button>
       <button className={section==='homestays'?'active':''} onClick={()=>setSection('homestays')}>宿 <span>民宿管理</span></button>
       <button className={section==='experiences'?'active':''} onClick={()=>setSection('experiences')}>游 <span>游玩采摘</span></button>
@@ -385,6 +418,7 @@ export function AdminConsolePage({ onExit }: { onExit: () => void }) {
       : section==='products' ? <section className="manage-list"><div className="manage-toolbar product-toolbar"><div><label>选择村民<select value={selectedFarmerId} onChange={(event)=>setSelectedFarmerId(Number(event.target.value))}>{farmers.map((farmer)=><option key={farmer.id} value={farmer.id}>{farmer.name}</option>)}</select></label></div><button disabled={!selectedFarmerId} onClick={()=>{setEditingProduct(null);setShowProductForm(true)}}>＋ 新增农产品</button></div>{selectedFarmer&&<p className="filter-summary">正在维护：{selectedFarmer.name}（{selectedFarmer.code}）</p>}{products.length ? products.map((product)=><article key={product.id}><span className="row-avatar">品</span><div><h3>{product.name}</h3><p>{product.category} · {product.season} · {product.summary}</p><small className="record-count">{product.skus.filter((sku)=>sku.enabled).map((sku)=>`${sku.specification} ¥${sku.unitPrice}`).join('；')} · 生产记录 {product.recordCount} 条</small></div><span className={product.status==='PUBLISHED'?'published':'draft'}>{product.status==='PUBLISHED'?'展示中':'草稿'}</span><button onClick={()=>{setRecordingProduct(product);setRecordMediaFile(null);setRecordError('');setError('')}}>添加过程</button><button onClick={()=>{setEditingProduct(product);setShowProductForm(true)}}>编辑</button><button disabled={busy} onClick={()=>toggleProductPublished(product)}>{product.status==='PUBLISHED'?'下架':'上架'}</button></article>) : <div className="section-empty"><span>品</span><h3>{selectedFarmer?'该村民暂无农产品':'请先选择村民'}</h3></div>}</section>
       : section==='reviews' ? <section className="manage-list"><div className="manage-toolbar"><div><button className="active">待审核 {reviews.length}</button></div><button onClick={reload}>刷新队列</button></div>{reviews.length ? reviews.map((record)=><article key={record.id}><span className="row-avatar">记</span><div><h3>{record.productName} · {record.stage}</h3><p>{record.originalText}</p><small className="record-count">来源已确认 · {new Date(record.occurredAt).toLocaleString('zh-CN')}</small>{record.media.map((media)=><button key={media.id} disabled={!media.contentUrl} onClick={()=>media.contentUrl&&openProtectedMedia(media.contentUrl)}>查看素材：{media.originalName}</button>)}</div><span className="draft">待审核</span><button disabled={busy} onClick={()=>review(record,false)}>驳回</button><button disabled={busy} onClick={()=>review(record,true)}>审核发布</button></article>) : <div className="section-empty"><span>✓</span><h3>暂无待审生产记录</h3></div>}</section>
       : section==='inquiries' ? <section className="manage-list inquiry-list"><div className="manage-toolbar order-filter-toolbar"><div><label>咨询类型<select value={inquiryType} onChange={(event)=>setInquiryType(event.target.value)}><option value="ALL">全部类型</option><option value="HOMESTAY">民宿</option><option value="EXPERIENCE">游玩采摘</option></select></label><label>状态<select value={inquiryStatus} onChange={(event)=>setInquiryStatus(event.target.value)}><option value="ALL">全部状态</option><option value="NEW">待联系</option><option value="CONTACTED">已联系</option><option value="CLOSED">已关闭</option></select></label></div><button onClick={reload}>刷新留言</button></div>{inquiries.length ? inquiries.map((inquiry)=><article key={inquiry.id}><span className="row-avatar">{inquiry.sourceType==='HOMESTAY'?'宿':'游'}</span><div><h3>{inquiry.targetName} · {inquiry.partySize} 人</h3><p>计划到访：{new Date(inquiry.visitAt).toLocaleString('zh-CN')} · 回访电话：<a href={`tel:${inquiry.callbackPhone}`}>{inquiry.callbackPhone}</a></p><small className="record-count">{inquiry.note||'未填写备注'} · 留言于 {new Date(inquiry.createdAt).toLocaleString('zh-CN')}</small></div><span className={inquiry.status==='CLOSED'?'published':'draft'}>{inquiry.status==='NEW'?'待联系':inquiry.status==='CONTACTED'?'已联系':'已关闭'}</span>{inquiry.status==='NEW'&&<button disabled={busy} onClick={()=>updateInquiry(inquiry,'contacted')}>标记已联系</button>}{inquiry.status!=='CLOSED'&&<button disabled={busy} onClick={()=>updateInquiry(inquiry,'closed')}>关闭</button>}</article>) : <div className="section-empty"><span>询</span><h3>当前筛选下暂无咨询留言</h3></div>}</section>
+      : section==='goodsSection' ? goodsSection ? <form className="content-form goods-section-form" onSubmit={saveGoodsSection}><header><div><small>PUBLIC PAGE · LOCAL HARVEST</small><h2>山野好物版块</h2><p>这里的内容会展示在公开首页农产品列表上方，保存后立即生效。</p></div></header><div className="form-grid"><label>版块小标题<input name="eyebrow" required maxLength={80} defaultValue={goodsSection.eyebrow}/></label><label>主标题<input name="title" required maxLength={255} defaultValue={goodsSection.title}/></label></div><label>介绍文案<textarea name="description" required maxLength={1000} defaultValue={goodsSection.description}/></label><div className="form-grid"><label>时节月份<input name="seasonLabel" required maxLength={50} defaultValue={goodsSection.seasonLabel}/></label><label>时节说明<input name="seasonNote" required maxLength={255} defaultValue={goodsSection.seasonNote}/></label></div><MediaUploadField name="imageUrl" label="展示图片" mediaType="IMAGE" initialUrl={goodsSection.imageUrl} required onBusyChange={trackUpload}/><label>图片说明<input name="imageCaption" required maxLength={160} defaultValue={goodsSection.imageCaption}/></label><footer><small>最后更新：{new Date(goodsSection.updatedAt).toLocaleString('zh-CN')}</small><button className="primary" type="submit" disabled={busy||uploadsInProgress>0}>{uploadsInProgress>0?'正在上传…':busy?'正在保存…':'保存并发布'}</button></footer></form> : <div className="section-empty"><span>展</span><h3>正在加载版块配置</h3></div>
       : <section className="manage-list"><div className="manage-toolbar"><div><button className="active">全部 {items.length}</button></div><button onClick={()=>{setEditing(null);setShowForm(true)}}>＋ 新增{section==='homestays'?'民宿':'游玩项目'}</button></div>{items.map((item)=><article key={item.id}><span className="row-avatar">{section==='homestays'?'宿':'游'}</span><div><h3>{item.name}</h3><p>{item.type} · {item.summary}</p><small className="record-count">{item.price}</small></div><span className={item.status==='PUBLISHED'?'published':'draft'}>{item.status==='PUBLISHED'?'展示中':'草稿'}</span><button onClick={()=>{setEditing(item);setShowForm(true)}}>编辑</button><button disabled={busy} onClick={()=>toggleContentPublished(item)}>{item.status==='PUBLISHED'?'下线':'发布'}</button></article>)}</section>}
     </section>
     {showForm&&(section==='homestays'||section==='experiences')&&<div className="modal-backdrop"><form className="content-form" onSubmit={saveContent}>
@@ -402,7 +436,7 @@ export function AdminConsolePage({ onExit }: { onExit: () => void }) {
       <div className="form-grid"><label>农产品名称<input name="name" required maxLength={160} defaultValue={editingProduct?.name}/></label><label>分类<input name="category" required maxLength={100} defaultValue={editingProduct?.category}/></label></div>
       <label>上市季节<input name="season" required maxLength={100} defaultValue={editingProduct?.season}/></label>
       <label>农产品介绍<textarea name="summary" required maxLength={2000} defaultValue={editingProduct?.summary}/></label>
-      <MediaUploadField name="coverUrl" label="农产品封面" mediaType="IMAGE" initialUrl={editingProduct?.coverUrl} required onBusyChange={trackUpload}/>
+      <ProductImageUploadField name="imageUrls" initialUrls={editingProduct?.imageUrls?.length ? editingProduct.imageUrls : editingProduct?.coverUrl ? [editingProduct.coverUrl] : []} onBusyChange={trackUpload}/>
       <fieldset className="sku-fields"><legend>可售规格</legend><div className="sku-field-head"><span>系统编码</span><span>规格名称</span><span>销售价（元）</span><span>库存说明</span><i/></div>{skuDrafts.map((sku,index)=><div className="sku-field-row" key={sku.key}><span className={`sku-generated-code ${sku.code?'ready':''}`}><small>系统编码</small>{sku.code||'保存后自动生成'}</span><label><span>规格名称</span><input aria-label={`第${index+1}条规格名称`} value={sku.specification} onChange={(event)=>setSkuDrafts((current)=>current.map((item)=>item.key===sku.key?{...item,specification:event.target.value}:item))} required maxLength={160} placeholder="如 500克/袋"/></label><label><span>销售价（元）</span><input aria-label={`第${index+1}条销售价`} value={sku.unitPrice} onChange={(event)=>setSkuDrafts((current)=>current.map((item)=>item.key===sku.key?{...item,unitPrice:event.target.value}:item))} required type="number" min="0.01" step="0.01" placeholder="29.90"/></label><label><span>库存说明</span><input aria-label={`第${index+1}条库存说明`} value={sku.stockNote} onChange={(event)=>setSkuDrafts((current)=>current.map((item)=>item.key===sku.key?{...item,stockNote:event.target.value}:item))} maxLength={200} placeholder="如 当季现货"/></label><button type="button" aria-label={`删除第${index+1}条规格`} disabled={skuDrafts.length===1} onClick={()=>setSkuDrafts((current)=>current.filter((item)=>item.key!==sku.key))}>删除</button></div>)}<button className="add-sku-button" type="button" onClick={()=>setSkuDrafts((current)=>[...current,emptySkuDraft()])}>＋ 添加一条规格</button><small>规格编码由后端统一生成；已有规格保留原编码，历史订单快照不受后续修改影响。</small></fieldset>
       <footer><button type="button" onClick={()=>setShowProductForm(false)}>取消</button><button className="primary" type="submit" disabled={busy||uploadsInProgress>0}>{uploadsInProgress>0?'正在上传…':busy?'正在保存…':'保存农产品'}</button></footer>
     </form></div>}

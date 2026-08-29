@@ -74,6 +74,7 @@ class NanpoWindowApplicationTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total").value(2))
                 .andExpect(jsonPath("$.data.items[0].name").value("太行山核桃"))
+                .andExpect(jsonPath("$.data.items[0].imageUrls[0]").value("/images/products.jpg"))
                 .andExpect(jsonPath("$.data.items[0].startingPrice").value(29.9));
 
         mockMvc.perform(get("/api/public/products/1"))
@@ -202,6 +203,7 @@ class NanpoWindowApplicationTests {
                   "season": "秋季",
                   "summary": "由村庄运营人员代村民维护的农产品。",
                   "coverUrl": "/images/products.jpg",
+                  "imageUrls": ["/images/products.jpg", "/images/walnut-yard.jpg"],
                   "skus": [{
                     "specification": "500g / 袋",
                     "unitPrice": 18.80,
@@ -223,6 +225,9 @@ class NanpoWindowApplicationTests {
                         .content(command))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("DRAFT"))
+                .andExpect(jsonPath("$.data.coverUrl").value("/images/products.jpg"))
+                .andExpect(jsonPath("$.data.imageUrls.length()").value(2))
+                .andExpect(jsonPath("$.data.imageUrls[1]").value("/images/walnut-yard.jpg"))
                 .andReturn().getResponse().getContentAsString();
         JsonNode createdProduct = objectMapper.readTree(createdBody).path("data");
         long productId = createdProduct.path("id").asLong();
@@ -251,6 +256,11 @@ class NanpoWindowApplicationTests {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[?(@.id == " + productId + ")].status").value("PUBLISHED"));
+
+        mockMvc.perform(get("/api/public/products/{productId}", productId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.product.imageUrls[0]").value("/images/products.jpg"))
+                .andExpect(jsonPath("$.data.product.imageUrls[1]").value("/images/walnut-yard.jpg"));
 
         String recordBody = mockMvc.perform(post("/api/admin/farmers/1/records")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
@@ -483,6 +493,37 @@ class NanpoWindowApplicationTests {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("CONTACTED"));
+    }
+
+    @Test
+    @Order(14)
+    void adminCanPublishGoodsSectionSettingsToThePublicSite() throws Exception {
+        String accessToken = login("13800000002").path("accessToken").asText();
+        String command = """
+                {
+                  "eyebrow": "南坡当季",
+                  "title": "山野风物，按时抵达。",
+                  "description": "由村庄运营人员维护的当季好物介绍。",
+                  "seasonLabel": "九月",
+                  "seasonNote": "核桃与小米进入收获期",
+                  "imageUrl": "https://example.com/goods.jpg",
+                  "imageCaption": "当季山野好物"
+                }
+                """;
+
+        mockMvc.perform(put("/api/admin/content/site-sections/goods")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(command))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.title").value("山野风物，按时抵达。"))
+                .andExpect(jsonPath("$.data.imageUrl").value("https://example.com/goods.jpg"));
+
+        mockMvc.perform(get("/api/public/site"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.goodsSection.eyebrow").value("南坡当季"))
+                .andExpect(jsonPath("$.data.goodsSection.seasonLabel").value("九月"))
+                .andExpect(jsonPath("$.data.goodsSection.imageCaption").value("当季山野好物"));
     }
 
     private JsonNode login(String phone) throws Exception {
