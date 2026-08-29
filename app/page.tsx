@@ -44,15 +44,15 @@ const experienceCards = [
 ];
 
 const nearbySpots = [
-  { name: '青龙峡 · 峰林峡', range: '约 20—30 km', time: '驾车约 40—60 分钟', type: '峡谷 · 湖泊', mark: '近', tone: 'moss', desc: '峡谷、瀑溪与高峡平湖，适合清凉徒步和山水摄影。', highlights: ['峡谷瀑溪', '翡翠湖色', '山地体验'], map: 'https://uri.amap.com/search?keyword=青龙峡景区峰林峡&city=焦作&callnative=0' },
-  { name: '圆融无碍禅寺', range: '约 20—35 km', time: '驾车约 45—60 分钟', type: '古寺 · 文化', mark: '寺', tone: 'sand', desc: '太行山前的古寺文化空间，适合与焦作市区安排成轻松半日。', highlights: ['古寺建筑', '山门远眺', '静心漫游'], map: 'https://uri.amap.com/search?keyword=圆融无碍禅寺&city=焦作&callnative=0' },
-  { name: '焦作城市漫游', range: '约 25—35 km', time: '驾车约 50—60 分钟', type: '古街 · 夜游', mark: '城', tone: 'clay', desc: '恩州驿、南水北调天河公园与焦作夜市，适合轻松逛吃。', highlights: ['恩州驿', '天河公园', '夜市烟火'], map: 'https://uri.amap.com/search?keyword=恩州驿&city=焦作&callnative=0' },
-  { name: '焦作影视城', range: '约 30—40 km', time: '驾车约 55—70 分钟', type: '古风 · 亲子', mark: '影', tone: 'ochre', desc: '以古代建筑场景和影视文化为特色，适合亲子拍照与城市一日游。', highlights: ['古风城楼', '影视场景', '亲子打卡'], map: 'https://uri.amap.com/search?keyword=焦作影视城&city=焦作&callnative=0' },
-  { name: '云台山', range: '约 35—45 km', time: '驾车约 60—75 分钟', type: '峡谷 · 飞瀑', mark: '云', tone: 'pine', desc: '红石峡、潭瀑峡与茱萸峰，第一次来焦作的经典山水选择。', highlights: ['红石峡', '潭瀑峡', '茱萸峰'], map: 'https://uri.amap.com/search?keyword=云台山景区&city=焦作&callnative=0' },
-  { name: '陈家沟', range: '约 65—80 km', time: '驾车约 90 分钟', type: '太极 · 非遗', mark: '拳', tone: 'sand', desc: '从太极祖祠到传统拳法体验，适合亲子研学与文化旅行。', highlights: ['太极祖祠', '太极文化园', '拳法体验'], map: 'https://uri.amap.com/search?keyword=陈家沟景区&city=焦作&callnative=0' },
-  { name: '嘉应观', range: '约 70—85 km', time: '驾车约 90—110 分钟', type: '黄河 · 古建', mark: '河', tone: 'ochre', desc: '走近黄河治理历史与清代建筑群，适合与陈家沟串联。', highlights: ['治黄行宫', '清代古建', '黄河文化'], map: 'https://uri.amap.com/search?keyword=嘉应观景区&city=焦作&callnative=0' },
-  { name: '神农山', range: '约 75—95 km', time: '驾车约 100—120 分钟', type: '登山 · 地质', mark: '峰', tone: 'stone', desc: '龙脊长城与白皮松景观，适合体力充足的登山爱好者。', highlights: ['紫金顶', '龙脊长城', '白皮松'], map: 'https://uri.amap.com/search?keyword=神农山景区&city=焦作&callnative=0' },
-  { name: '青天河', range: '约 85—100 km', time: '驾车约 110—130 分钟', type: '游船 · 红叶', mark: '湖', tone: 'blue', desc: '高峡平湖、十里画廊与秋日红叶，适合安排一整天慢慢游览。', highlights: ['高峡平湖', '游船画廊', '秋日红叶'], map: 'https://uri.amap.com/search?keyword=青天河景区&city=焦作&callnative=0' },
+  { name: '青龙峡 · 峰林峡', range: '约 20—30 km', time: '驾车约 40—60 分钟', type: '峡谷 · 湖泊', mark: '近', tone: 'moss', image: '/images/spots/qinglong.jpg', desc: '峡谷、瀑溪与高峡平湖，适合清凉徒步和山水摄影。', highlights: ['峡谷瀑溪', '翡翠湖色', '山地体验'], map: 'https://uri.amap.com/search?keyword=青龙峡景区峰林峡&city=焦作&callnative=0' },
+  { name: '圆融无碍禅寺', range: '约 20—35 km', time: '驾车约 45—60 分钟', type: '古寺 · 文化', mark: '寺', tone: 'sand', image: '/images/spots/yuanrong.jpg', desc: '太行山前的古寺文化空间，适合与焦作市区安排成轻松半日。', highlights: ['古寺建筑', '山门远眺', '静心漫游'], map: 'https://uri.amap.com/search?keyword=圆融无碍禅寺&city=焦作&callnative=0' },
+  { name: '焦作城市漫游', range: '约 25—35 km', time: '驾车约 50—60 分钟', type: '古街 · 夜游', mark: '城', tone: 'clay', image: '/images/spots/jiaozuo-city.jpg', desc: '恩州驿、南水北调天河公园与焦作夜市，适合轻松逛吃。', highlights: ['恩州驿', '天河公园', '夜市烟火'], map: 'https://uri.amap.com/search?keyword=恩州驿&city=焦作&callnative=0' },
+  { name: '焦作影视城', range: '约 30—40 km', time: '驾车约 55—70 分钟', type: '古风 · 亲子', mark: '影', tone: 'ochre', image: '/images/spots/film-city.png', desc: '以古代建筑场景和影视文化为特色，适合亲子拍照与城市一日游。', highlights: ['古风城楼', '影视场景', '亲子打卡'], map: 'https://uri.amap.com/search?keyword=焦作影视城&city=焦作&callnative=0' },
+  { name: '云台山', range: '约 35—45 km', time: '驾车约 60—75 分钟', type: '峡谷 · 飞瀑', mark: '云', tone: 'pine', image: '/images/spots/yuntai.jpg', desc: '红石峡、潭瀑峡与茱萸峰，第一次来焦作的经典山水选择。', highlights: ['红石峡', '潭瀑峡', '茱萸峰'], map: 'https://uri.amap.com/search?keyword=云台山景区&city=焦作&callnative=0' },
+  { name: '陈家沟', range: '约 65—80 km', time: '驾车约 90 分钟', type: '太极 · 非遗', mark: '拳', tone: 'sand', image: '/images/spots/chenjiagou.jpg', desc: '从太极祖祠到传统拳法体验，适合亲子研学与文化旅行。', highlights: ['太极祖祠', '太极文化园', '拳法体验'], map: 'https://uri.amap.com/search?keyword=陈家沟景区&city=焦作&callnative=0' },
+  { name: '嘉应观', range: '约 70—85 km', time: '驾车约 90—110 分钟', type: '黄河 · 古建', mark: '河', tone: 'ochre', image: '/images/spots/jiayingguan.jpg', desc: '走近黄河治理历史与清代建筑群，适合与陈家沟串联。', highlights: ['治黄行宫', '清代古建', '黄河文化'], map: 'https://uri.amap.com/search?keyword=嘉应观景区&city=焦作&callnative=0' },
+  { name: '神农山', range: '约 75—95 km', time: '驾车约 100—120 分钟', type: '登山 · 地质', mark: '峰', tone: 'stone', image: '/images/spots/shennong.jpg', desc: '龙脊长城与白皮松景观，适合体力充足的登山爱好者。', highlights: ['紫金顶', '龙脊长城', '白皮松'], map: 'https://uri.amap.com/search?keyword=神农山景区&city=焦作&callnative=0' },
+  { name: '青天河', range: '约 85—100 km', time: '驾车约 110—130 分钟', type: '游船 · 红叶', mark: '湖', tone: 'blue', image: '/images/spots/qingtianhe.jpg', desc: '高峡平湖、十里画廊与秋日红叶，适合安排一整天慢慢游览。', highlights: ['高峡平湖', '游船画廊', '秋日红叶'], map: 'https://uri.amap.com/search?keyword=青天河景区&city=焦作&callnative=0' },
 ];
 
 const nearbyPlans: Record<NearbyPlanId, { eyebrow: string; name: string; days: string; fit: string; distance: string; summary: string; color: string; stops: { time: string; title: string; detail: string }[]; tips: string[] }> = {
@@ -184,7 +184,7 @@ function PublicWindow({ onManage, onFarmer }: { onManage: () => void; onFarmer: 
 
       <section className="day-trip"><div className="day-photo"><Image src="/images/village-pond.jpg" alt="大南坡村院落生活" fill sizes="40vw"/><span>ONE DAY IN NANPO</span></div><div className="day-copy"><span>一日南坡建议</span><h2>不赶路，去感受。</h2><div className="timeline"><div><b>09:30</b><p><strong>抵达大南坡</strong><small>从艺术中心开始认识村庄</small></p></div><div><b>11:00</b><p><strong>方所乡村文化</strong><small>在老戏台改成的书店慢慢读</small></p></div><div><b>13:30</b><p><strong>老村散步</strong><small>沿灰砖院落与古树寻找乡土日常</small></p></div><div><b>16:00</b><p><strong>碧山工销社</strong><small>挑一份山野物产带回家</small></p></div></div><button onClick={() => notify('一日游路线已保存')}>收藏这条路线 →</button></div></section>
 
-      <footer className="site-footer"><div className="footer-brand"><span className="brand-seal">南</span><h2>南坡之窗</h2><p>太行山下，一座会生长的村庄。</p></div><div><small>来南坡</small><a href="#route">出行路线</a><a href="#nearby">百公里周边游</a><a href="#experience">游玩与采摘</a><a href="#stay">民宿山居</a><a href="#goods">乡野好物</a></div><div><small>认识南坡</small><a href="#about">村庄故事</a><a href="#about">文化空间</a><button onClick={onManage}>内容管理</button></div><div className="footer-contact"><small>访客服务</small><strong>电话待后台录入</strong><p>河南省焦作市修武县<br/>西村乡大南坡村</p></div><div className="source-note">路线与村庄资料参考文化和旅游部、焦作市文旅局及景区公开信息，更新时间：2026 年 8 月。页面距离、车程为从大南坡村出发的规划估算，不代表实时导航；出发前请复核路况、班次、票务与开放安排。</div></footer>
+      <footer className="site-footer"><div className="footer-brand"><span className="brand-seal">南</span><h2>南坡之窗</h2><p>太行山下，一座会生长的村庄。</p></div><div><small>来南坡</small><a href="#route">出行路线</a><a href="#nearby">百公里周边游</a><a href="#experience">游玩与采摘</a><a href="#stay">民宿山居</a><a href="#goods">乡野好物</a></div><div><small>认识南坡</small><a href="#about">村庄故事</a><a href="#about">文化空间</a><button onClick={onManage}>内容管理</button></div><div className="footer-contact"><small>访客服务</small><strong>电话待后台录入</strong><p>河南省焦作市修武县<br/>西村乡大南坡村</p></div><div className="source-note">路线与村庄资料参考文化和旅游部、焦作市文旅局及景区公开信息，更新时间：2026 年 8 月。页面距离、车程为从大南坡村出发的规划估算，不代表实时导航；出发前请复核路况、班次、票务与开放安排。景点图片来自公开文旅与新闻资料，仅用于本地原型展示，正式上线前需逐项确认授权。</div></footer>
       {storyItem&&<ProductStory product={storyItem} onClose={()=>setStoryItem(null)} onBuy={()=>{setStoryItem(null);setOrderItem(storyItem)}}/>}
       {orderItem&&<CheckoutFlow product={orderItem} onClose={()=>setOrderItem(null)}/>} 
       {videoItem&&<VideoPreview item={videoItem} onClose={()=>setVideoItem(null)}/>}
@@ -213,7 +213,7 @@ function NearbyTravel({ notify }: { notify: (message: string) => void }) {
     </div>
 
     <div className="nearby-spots">
-      {nearbySpots.map((spot, index) => <article key={spot.name} className={`spot-card ${spot.tone}`}>
+      {nearbySpots.map((spot, index) => <article key={spot.name} className={`spot-card ${spot.tone}`}><Image className="spot-bg" src={spot.image} alt={`${spot.name}实景`} fill sizes="(max-width: 760px) 100vw, 33vw" />
         <header><span>{spot.mark}</span><small>0{index + 1} · {spot.type}</small></header>
         <h3>{spot.name}</h3><p>{spot.desc}</p><ul>{spot.highlights.map(item => <li key={item}>{item}</li>)}</ul>
         <div><strong>{spot.range}</strong><small>{spot.time}</small><a href={spot.map} target="_blank" rel="noreferrer" aria-label={`在地图中查看${spot.name}`}>地图导航 ↗</a></div>
