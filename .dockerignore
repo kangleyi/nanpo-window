@@ -5,6 +5,7 @@ node_modules
 dist
 .git
 .idea
+.codegraph
 outputs
 *.zip
 *.tar.gz
