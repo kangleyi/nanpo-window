@@ -131,6 +131,7 @@ export function PublicWindow({ onManage, onFarmer, onLogin }: { onManage: () => 
   const [toast, setToast] = useState('');
   const [orderItem, setOrderItem] = useState<ProductCard | null>(null);
   const [storyItem, setStoryItem] = useState<ProductCard | null>(null);
+  const [detailItem, setDetailItem] = useState<ProductCard | null>(null);
   const [videoItem, setVideoItem] = useState<ExperienceCard | null>(null);
   const [inquiryTarget, setInquiryTarget] = useState<InquiryTarget | null>(null);
   const [stayPage, setStayPage] = useState(1);
@@ -250,7 +251,7 @@ export function PublicWindow({ onManage, onFarmer, onLogin }: { onManage: () => 
       <section className="goods-section" id="goods">
         <div className="goods-intro"><div className="section-kicker light"><span>06</span><small>LOCAL HARVEST</small></div><span>山野好物</span><h2>每一份收成都有<br/>自己的时节。</h2><p>山核桃、山花椒、小米与蜂蜜，是公开旅游资料中推荐的焦作山野物产。具体商品、价格和村民联系方式由后台上架。</p><div className="season"><b>八月</b><span><i style={{width:'72%'}}/>核桃与花椒陆续成熟</span></div></div>
         <div className="goods-visual"><Image src="/images/products.jpg" alt="大南坡工销社陈列的农产品" fill sizes="35vw"/><span>工销社里的山野收成</span></div>
-        <div className="goods-list">{publicGoodsCards.length ? <>{publicGoodsCards.slice((goodsPage-1)*goodsPageSize,goodsPage*goodsPageSize).map((item,index)=><article key={item.name}><span className="goods-index">{String((goodsPage-1)*goodsPageSize+index+1).padStart(2,'0')}</span><div className="goods-icon">{item.icon}</div><div><small>{item.season}</small><h3>{item.name}</h3><p>{item.desc}</p></div><strong>{item.price}</strong><button className="trace-button" onClick={() => setStoryItem(item)}>看过程</button><button onClick={() => setOrderItem(item)}>购买</button></article>)}<Pagination page={goodsPage} total={publicGoodsCards.length} pageSize={goodsPageSize} onChange={setGoodsPage} label="农产品" dark /></> : <EmptyState label="农产品"/>}</div>
+        <div className="goods-list">{publicGoodsCards.length ? <>{publicGoodsCards.slice((goodsPage-1)*goodsPageSize,goodsPage*goodsPageSize).map((item,index)=><article key={item.name}><span className="goods-index">{String((goodsPage-1)*goodsPageSize+index+1).padStart(2,'0')}</span><div className="goods-icon">{item.icon}</div><div><small>{item.season}</small><h3><button className="goods-name" disabled={!item.id} onClick={() => setDetailItem(item)} aria-label={`查看${item.name}商品详情`}>{item.name}</button></h3><p>{item.desc}</p></div><strong>{item.price}</strong><button className="trace-button" onClick={() => setStoryItem(item)}>看过程</button><button onClick={() => setOrderItem(item)}>购买</button></article>)}<Pagination page={goodsPage} total={publicGoodsCards.length} pageSize={goodsPageSize} onChange={setGoodsPage} label="农产品" dark /></> : <EmptyState label="农产品"/>}</div>
       </section>
 
       <section className="day-trip"><div className="day-photo"><Image src="/images/village-pond.jpg" alt="大南坡村院落生活" fill sizes="40vw"/><span>ONE DAY IN NANPO</span></div><div className="day-copy"><span>一日南坡建议</span><h2>不赶路，去感受。</h2><div className="timeline"><div><b>09:30</b><p><strong>抵达大南坡</strong><small>从艺术中心开始认识村庄</small></p></div><div><b>11:00</b><p><strong>方所乡村文化</strong><small>在老戏台改成的书店慢慢读</small></p></div><div><b>13:30</b><p><strong>老村散步</strong><small>沿灰砖院落与古树寻找乡土日常</small></p></div><div><b>16:00</b><p><strong>碧山工销社</strong><small>挑一份山野物产带回家</small></p></div></div><button onClick={() => notify('一日游路线已保存')}>收藏这条路线 →</button></div></section>
@@ -271,6 +272,7 @@ export function PublicWindow({ onManage, onFarmer, onLogin }: { onManage: () => 
           onClick={() => setActiveNav(id)}
         ><span aria-hidden="true">{icon}</span><b>{label}</b></a>)}
       </nav>
+      {detailItem&&<ProductDetailModal product={detailItem} onClose={()=>setDetailItem(null)} onStory={()=>{setDetailItem(null);setStoryItem(detailItem)}} onBuy={()=>{setDetailItem(null);setOrderItem(detailItem)}}/>}
       {storyItem&&<ProductStory product={storyItem} onClose={()=>setStoryItem(null)} onBuy={()=>{setStoryItem(null);setOrderItem(storyItem)}}/>}
       {orderItem&&<CheckoutFlow product={orderItem} onClose={()=>setOrderItem(null)} onLogin={onLogin}/>}
       {videoItem&&<VideoPreview item={videoItem} onClose={()=>setVideoItem(null)}/>}
@@ -278,6 +280,37 @@ export function PublicWindow({ onManage, onFarmer, onLogin }: { onManage: () => 
       {toast&&<div className="toast">✓ {toast}</div>}
     </main>
   );
+}
+
+function ProductDetailModal({ product, onClose, onStory, onBuy }: { product: ProductCard; onClose: () => void; onStory: () => void; onBuy: () => void }) {
+  const [detail, setDetail] = useState<ProductDetail | null>(null);
+  const [error, setError] = useState('');
+  const reload = useCallback(() => {
+    if (!product.id) {
+      setError('该商品还没有可公开的详情');
+      return;
+    }
+    setError('');
+    loadPublicProduct(product.id)
+      .then(setDetail)
+      .catch((reason) => setError(reason instanceof ApiError ? reason.message : '商品详情加载失败'));
+  }, [product.id]);
+
+  useEffect(() => reload(), [reload]);
+
+  return <div className="modal-backdrop product-detail-backdrop"><section className="product-detail-modal" aria-modal="true" role="dialog" aria-labelledby="product-detail-title">
+    <header><div><small>LOCAL HARVEST · 商品详情</small><h2 id="product-detail-title">{product.name}</h2></div><button onClick={onClose} aria-label="关闭商品详情">×</button></header>
+    {!detail&&!error&&<div className="product-detail-state"><span className="state-spinner"/><p>正在读取商品信息…</p></div>}
+    {error&&<div className="product-detail-state"><strong>{error}</strong><button onClick={reload}>重新加载</button></div>}
+    {detail&&<>
+      <div className="product-detail-overview">
+        <div className="product-detail-cover"><Image src={detail.product.coverUrl || product.image || '/images/products.jpg'} alt={detail.product.name} fill sizes="320px"/></div>
+        <div className="product-detail-copy"><div className="product-detail-tags"><span>{detail.product.category}</span><span>{detail.product.season}</span></div><h3>{detail.product.name}</h3><p>{detail.product.summary}</p><div className="product-detail-farmer"><span>{detail.farmer.name.slice(0,1)}</span><div><small>提交农户</small><strong>{detail.farmer.name}</strong></div><i>{detail.farmer.certificationStatus === 'APPROVED' ? '身份已审核 ✓' : '身份待审核'}</i></div></div>
+      </div>
+      <div className="product-detail-specs"><header><div><small>AVAILABLE OPTIONS</small><h3>可售规格</h3></div><span>共 {detail.skus.length} 种</span></header>{detail.skus.length ? <div>{detail.skus.map((sku) => <article key={sku.id}><div><strong>{sku.specification}</strong><small>规格编号：{sku.code}</small></div><b>¥ {Number(sku.unitPrice).toFixed(2)}</b><p>{sku.stockNote || '库存以提交订单时为准'}</p></article>)}</div> : <EmptyState label="可售规格"/>}</div>
+      <footer><button className="detail-story" onClick={onStory}>查看真实生产过程</button><button className="detail-buy" disabled={!detail.skus.length} onClick={onBuy}>选择规格并购买 →</button></footer>
+    </>}
+  </section></div>;
 }
 
 function EmptyState({ label }: { label: string }) {
