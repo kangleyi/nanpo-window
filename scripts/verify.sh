@@ -4,8 +4,11 @@ set -eu
 PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 
 if [ -x /usr/libexec/java_home ]; then
-  JAVA_HOME=$(/usr/libexec/java_home -v 21)
-  export JAVA_HOME
+  DETECTED_JAVA_HOME=$(/usr/libexec/java_home -v 21 2>/dev/null || true)
+  if [ -n "$DETECTED_JAVA_HOME" ] && [ -x "$DETECTED_JAVA_HOME/bin/java" ]; then
+    JAVA_HOME=$DETECTED_JAVA_HOME
+    export JAVA_HOME
+  fi
 fi
 
 JAVA_VERSION=$(${JAVA_HOME:+"$JAVA_HOME/bin/"}java -version 2>&1 | awk -F '"' '/version/ { print $2; exit }')

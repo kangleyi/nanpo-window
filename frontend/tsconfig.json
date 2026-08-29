@@ -8,6 +8,7 @@
     "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "bundler",
+    "types": ["vite/client"],
     "isolatedModules": true,
     "jsx": "react-jsx",
     "useDefineForClassFields": true

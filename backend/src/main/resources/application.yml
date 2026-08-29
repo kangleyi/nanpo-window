@@ -1,6 +1,15 @@
 spring:
   application:
     name: nanpo-window
+  datasource:
+    url: ${DATABASE_URL:jdbc:h2:mem:nanpo;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1}
+    username: ${DATABASE_USERNAME:sa}
+    password: ${DATABASE_PASSWORD:}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  jackson:
+    default-property-inclusion: non_null
   web:
     resources:
       cache:
@@ -18,3 +27,17 @@ management:
     web:
       exposure:
         include: health,info
+
+springdoc:
+  swagger-ui:
+    path: /api/docs
+    operations-sorter: method
+  api-docs:
+    path: /api/openapi
+
+app:
+  auth:
+    access-token-ttl: PT2H
+    refresh-token-ttl: P30D
+    sms-code-ttl: PT5M
+    local-code: ${LOCAL_SMS_CODE:123456}

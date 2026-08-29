@@ -14,5 +14,6 @@ outputs
 *.zip
 *.tar.gz
 .DS_Store
+.env*
 npm-debug.log*
 next-env.d.ts

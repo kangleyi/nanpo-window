@@ -14,9 +14,14 @@ FROM eclipse-temurin:21-jre AS runner
 
 WORKDIR /app
 
-ENV PORT=8080
+ENV PORT=8080 \
+    APP_STORAGE_LOCAL_ROOT=/data/uploads
 
 COPY --from=builder /workspace/backend/target/nanpo-window-backend-0.1.0-SNAPSHOT.jar /app/app.jar
+
+RUN mkdir -p /data/uploads
+
+VOLUME ["/data/uploads"]
 
 EXPOSE 8080
 
