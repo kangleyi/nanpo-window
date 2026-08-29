@@ -174,7 +174,7 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
-    public List<OrderView> adminOrders(String status) {
+    public List<OrderView> adminOrders(String status, Long farmerId) {
         String normalized = status == null || status.isBlank() ? "ALL" : status.toUpperCase();
         if (!"ALL".equals(normalized)) {
             try {
@@ -183,7 +183,22 @@ public class OrderService {
                 throw new ApiException(ErrorCode.INVALID_ARGUMENT, "不支持的订单状态");
             }
         }
-        return repository.findAdminOrders(normalized);
+        if (farmerId != null && farmerId < 1) {
+            throw new ApiException(ErrorCode.INVALID_ARGUMENT, "村民编号必须大于 0");
+        }
+        return repository.findAdminOrders(normalized, farmerId);
+    }
+
+    @Transactional
+    public OrderView markReadyByAdmin(long id, UserPrincipal operator, String ipAddress) {
+        OrderView order = order(id);
+        requireStatus(order, OrderStatus.PAID);
+        if (!repository.markReadyToShip(id, order.version())) {
+            throw concurrentConflict();
+        }
+        logTransition(order, OrderStatus.READY_TO_SHIP, operator.id(), "运营确认备货完成");
+        auditService.record(operator.id(), "ORDER_READY_TO_SHIP", "CUSTOMER_ORDER", String.valueOf(id), ipAddress);
+        return order(id);
     }
 
     @Transactional

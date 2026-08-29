@@ -18,7 +18,8 @@ public interface ObjectStorage {
             String mediaType,
             String contentType,
             long sizeBytes,
-            String checksumSha256) {
+            String checksumSha256,
+            String originalName) {
     }
 
     record UploadTicket(

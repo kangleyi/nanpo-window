@@ -9,6 +9,8 @@ app:
   auth:
     # Production must supply a real SMS gateway before enabling SMS login.
     local-code: ""
+  storage:
+    type: ${STORAGE_TYPE:cos}
 
 springdoc:
   api-docs:

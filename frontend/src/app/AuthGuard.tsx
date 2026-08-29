@@ -28,8 +28,7 @@ export function AuthGuard({ roles, children }: { roles: string[]; children: Reac
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
   if (!state.user.roles.some((role) => roles.includes(role))) {
-    return <main className="app-state"><h1>当前账号无权访问</h1><p>请联系村庄管理员配置角色与数据范围。</p><a href="/">返回南坡之窗</a></main>;
+    return <main className="app-state"><h1>当前账号无权访问</h1><p>请联系村庄管理员配置角色与数据范围。</p><a href="/">返回乡见西村</a></main>;
   }
   return children;
 }
-

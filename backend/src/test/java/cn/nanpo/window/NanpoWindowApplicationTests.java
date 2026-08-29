@@ -9,9 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.HashMap;
-import java.util.HexFormat;
 import java.util.Map;
-import java.security.MessageDigest;
 
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -28,7 +26,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-@SpringBootTest
+@SpringBootTest(properties = "app.storage.type=local")
 @AutoConfigureMockMvc
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -187,61 +185,85 @@ class NanpoWindowApplicationTests {
 
     @Test
     @Order(8)
-    void farmerRecordRequiresOwnershipSubmissionAndReviewerApproval() throws Exception {
+    void farmerCannotMaintainProductsAndAdminCanManageThemForFarmer() throws Exception {
         String farmerToken = login("13800000001").path("accessToken").asText();
         String adminToken = login("13800000002").path("accessToken").asText();
         String command = """
                 {
-                  "productId": 1,
                   "plotId": 1,
-                  "stage": "PACKING",
-                  "occurredAt": "2026-08-28T09:00:00",
-                  "originalText": "今天完成了新一批核桃分选和装袋。",
-                  "truthConfirmed": true
+                  "name": "测试山小米",
+                  "category": "杂粮",
+                  "season": "秋季",
+                  "summary": "由村庄运营人员代村民维护的农产品。",
+                  "coverUrl": "/images/products.jpg",
+                  "skus": [{
+                    "code": "TEST-MILLET-500",
+                    "specification": "500g / 袋",
+                    "unitPrice": 18.80,
+                    "stockNote": "测试现货"
+                  }]
                 }
                 """;
 
-        String createdBody = mockMvc.perform(post("/api/farmer/records")
+        mockMvc.perform(post("/api/farmer/products")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + farmerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(command))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+
+        String createdBody = mockMvc.perform(post("/api/admin/farmers/1/products")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(command))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("DRAFT"))
+                .andExpect(jsonPath("$.data.skus[0].code").value("TEST-MILLET-500"))
                 .andReturn().getResponse().getContentAsString();
-        long id = objectMapper.readTree(createdBody).path("data").path("id").asLong();
+        long productId = objectMapper.readTree(createdBody).path("data").path("id").asLong();
 
-        mockMvc.perform(get("/api/public/products/1"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.productionRecords.length()").value(2));
-
-        mockMvc.perform(post("/api/farmer/records/{id}/submit", id)
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + farmerToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("PENDING_REVIEW"));
-
-        mockMvc.perform(get("/api/admin/reviews/records")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.length()").value(1))
-                .andExpect(jsonPath("$.data[0].id").value(id));
-
-        mockMvc.perform(post("/api/admin/reviews/records/{id}/approve", id)
+        String updatedCommand = command.replace("测试山小米", "测试山小米·精选")
+                .replace("18.80", "19.80");
+        mockMvc.perform(put("/api/admin/farmers/1/products/{productId}", productId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"confirmedText\":\"8 月 28 日完成核桃分选和装袋。\"}"))
+                        .content(updatedCommand))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name").value("测试山小米·精选"))
+                .andExpect(jsonPath("$.data.skus[0].unitPrice").value(19.8));
+
+        mockMvc.perform(post("/api/admin/farmers/1/products/{productId}/publish", productId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("PUBLISHED"));
 
-        mockMvc.perform(get("/api/public/products/1"))
+        mockMvc.perform(get("/api/admin/farmers/1/products")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.productionRecords.length()").value(3))
-                .andExpect(jsonPath("$.data.productionRecords[2].text").value("8 月 28 日完成核桃分选和装袋。"));
+                .andExpect(jsonPath("$.data[?(@.id == " + productId + ")].status").value("PUBLISHED"));
 
-        mockMvc.perform(post("/api/admin/reviews/records/{id}/approve", id)
+        String recordBody = mockMvc.perform(post("/api/admin/farmers/1/records")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
-                .andExpect(status().isConflict());
+                        .content("""
+                                {
+                                  "productId": %d,
+                                  "plotId": 1,
+                                  "stage": "HARVEST",
+                                  "occurredAt": "2026-08-28T09:00:00",
+                                  "originalText": "运营人员向村民核实后，记录小米采收过程。",
+                                  "truthConfirmed": true
+                                }
+                                """.formatted(productId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("DRAFT"))
+                .andReturn().getResponse().getContentAsString();
+        long recordId = objectMapper.readTree(recordBody).path("data").path("id").asLong();
+
+        mockMvc.perform(post("/api/admin/farmers/1/records/{recordId}/submit", recordId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("PENDING_REVIEW"));
     }
 
     @Test
@@ -303,6 +325,19 @@ class NanpoWindowApplicationTests {
 
         mockMvc.perform(post("/api/farmer/orders/{id}/prepare", orderId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + farmerToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+
+        mockMvc.perform(get("/api/admin/orders")
+                        .queryParam("farmerId", "1")
+                        .queryParam("status", "PAID")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].id").value(orderId));
+
+        mockMvc.perform(post("/api/admin/orders/{id}/prepare", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("READY_TO_SHIP"));
 
@@ -318,20 +353,16 @@ class NanpoWindowApplicationTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("COMPLETED"));
 
-        mockMvc.perform(post("/api/farmer/orders/{id}/prepare", orderId)
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + farmerToken))
+        mockMvc.perform(post("/api/admin/orders/{id}/prepare", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
                 .andExpect(status().isConflict());
     }
 
     @Test
     @Order(10)
-    void mediaUploadValidatesOwnershipSignatureSizeAndChecksum() throws Exception {
+    void farmerCannotUploadProductionMedia() throws Exception {
         String farmerToken = login("13800000001").path("accessToken").asText();
-        String customerToken = login("13900000003").path("accessToken").asText();
-        String reviewerToken = login("13800000002").path("accessToken").asText();
-        byte[] pngHeader = new byte[] {(byte) 0x89, 'P', 'N', 'G', 13, 10, 26, 10};
-        String checksum = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(pngHeader));
-        String ticketBody = mockMvc.perform(post("/api/media/upload-ticket")
+        mockMvc.perform(post("/api/media/upload-ticket")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + farmerToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -340,68 +371,31 @@ class NanpoWindowApplicationTests {
                                   "contentType":"image/png",
                                   "sizeBytes":8,
                                   "originalName":"harvest.png",
-                                  "checksumSha256":"%s",
+                                  "checksumSha256":"4c4b6a3be1314ab86138bef4314dde022e600960d8689a2c8f8631802d20dab6",
                                   "recordId":1
                                 }
-                                """.formatted(checksum)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.media.status").value("CREATED"))
-                .andExpect(jsonPath("$.data.uploadUrl").isNotEmpty())
-                .andReturn().getResponse().getContentAsString();
-        long mediaId = objectMapper.readTree(ticketBody).path("data").path("media").path("id").asLong();
-
-        mockMvc.perform(put("/api/media/{id}/content", mediaId)
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + farmerToken)
-                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                        .content(pngHeader))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("UPLOADED"));
-
-        mockMvc.perform(post("/api/media/{id}/complete", mediaId)
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + farmerToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("READY"))
-                .andExpect(jsonPath("$.data.checksumSha256").value(checksum));
-
-        mockMvc.perform(get("/api/media/{id}/status", mediaId)
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + customerToken))
+                                """))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
-
-        mockMvc.perform(get("/api/media/{id}/content", mediaId)
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + reviewerToken))
-                .andExpect(status().isOk())
-                .andExpect(header().string(HttpHeaders.CONTENT_TYPE, "image/png"));
     }
 
     @Test
     @Order(11)
-    void aiCopyUsesOnlyReviewedSourcesAndRequiresOwnerConfirmation() throws Exception {
+    void farmerCannotGenerateOrConfirmAiCopy() throws Exception {
         String farmerToken = login("13800000001").path("accessToken").asText();
-        String body = mockMvc.perform(post("/api/farmer/products/1/ai-copy")
+        mockMvc.perform(post("/api/farmer/products/1/ai-copy")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + farmerToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"scene\":\"PRODUCT_INTRO\"}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("DRAFT"))
-                .andExpect(jsonPath("$.data.sourceRecordIds.length()").value(3))
-                .andExpect(jsonPath("$.data.modelName").value("local-factual-template"))
-                .andReturn().getResponse().getContentAsString();
-        long generationId = objectMapper.readTree(body).path("data").path("id").asLong();
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
 
-        mockMvc.perform(post("/api/farmer/ai-copy/{id}/confirm", generationId)
+        mockMvc.perform(post("/api/farmer/ai-copy/{id}/confirm", 1)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + farmerToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"confirmedText\":\"这段文案由农户确认，只包含已审核事实。\"}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("CONFIRMED"))
-                .andExpect(jsonPath("$.data.confirmedText").value("这段文案由农户确认，只包含已审核事实。"));
-
-        mockMvc.perform(post("/api/farmer/ai-copy/{id}/confirm", generationId)
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + farmerToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"confirmedText\":\"不能重复确认。\"}"))
-                .andExpect(status().isConflict());
+                        .content("{\"confirmedText\":\"不能由村民确认。\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
     }
 
     private JsonNode login(String phone) throws Exception {

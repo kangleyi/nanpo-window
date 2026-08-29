@@ -32,6 +32,7 @@ function Image({ fill, priority, style, ...props }: ImageProps) {
 type RouteType = 'drive' | 'rail' | 'bus';
 type AdminTab = 'overview' | 'orders' | 'stay' | 'goods' | 'experience' | 'contact';
 type NearbyPlanId = string;
+type PublicNavId = 'top' | 'route' | 'nearby' | 'stay' | 'goods';
 type StayCard = { name: string; type: string; desc: string; price: string; image: string; beds: string };
 type ProductCard = { id?: number; name: string; icon: string; season: string; desc: string; price: string; image?: string };
 type ExperienceCard = { name: string; type: string; season: string; duration: string; desc: string; price: string; image: string; hasVideo: boolean; video?: string };
@@ -134,6 +135,7 @@ export function PublicWindow({ onManage, onFarmer, onLogin }: { onManage: () => 
   const [experiencePage, setExperiencePage] = useState(1);
   const [homeData, setHomeData] = useState<PublicHomeData | null>(null);
   const [catalogError, setCatalogError] = useState('');
+  const [activeNav, setActiveNav] = useState<PublicNavId>('top');
   const stayPageSize = 3;
   const goodsPageSize = 4;
   const experiencePageSize = 3;
@@ -147,8 +149,24 @@ export function PublicWindow({ onManage, onFarmer, onLogin }: { onManage: () => 
 
   useEffect(() => reloadCatalog(), [reloadCatalog]);
 
+  useEffect(() => {
+    if (!homeData) return;
+    const sectionIds: PublicNavId[] = ['top', 'route', 'nearby', 'stay', 'goods'];
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries
+        .filter((entry) => entry.isIntersecting)
+        .sort((left, right) => right.intersectionRatio - left.intersectionRatio)[0];
+      if (visible) setActiveNav(visible.target.id as PublicNavId);
+    }, { rootMargin: '-18% 0px -62% 0px', threshold: [0, 0.05, 0.25] });
+    sectionIds.forEach((id) => {
+      const section = document.getElementById(id);
+      if (section) observer.observe(section);
+    });
+    return () => observer.disconnect();
+  }, [homeData]);
+
   if (!homeData) {
-    return <main className="app-state">{catalogError ? <><h1>暂时无法打开南坡之窗</h1><p>{catalogError}</p><button onClick={reloadCatalog}>重新加载</button></> : <><span className="state-spinner"/><h1>正在打开南坡之窗…</h1><p>读取村庄、行程、民宿与农品的最新公开信息。</p></>}</main>;
+    return <main className="app-state">{catalogError ? <><h1>暂时无法打开乡见西村</h1><p>{catalogError}</p><button onClick={reloadCatalog}>重新加载</button></> : <><span className="state-spinner"/><h1>正在打开乡见西村…</h1><p>读取村庄、行程、民宿与农品的最新公开信息。</p></>}</main>;
   }
 
   const routeMap = Object.fromEntries(homeData.routes.map((item) => [item.kind, { title: item.title, time: item.duration, steps: item.steps, note: item.note }]));
@@ -161,11 +179,11 @@ export function PublicWindow({ onManage, onFarmer, onLogin }: { onManage: () => 
   const publicNearbyPlans = Object.fromEntries(homeData.travelPlans.map((item, index) => [item.slug, { eyebrow: '从南坡出发', name: item.name, days: item.duration, fit: item.suitableFor, distance: item.distance, summary: item.summary, color: ['green', 'blue', 'orange'][index % 3], stops: item.stops, tips: item.tips }])) as Record<string, NearbyPlan>;
 
   return (
-    <main>
+    <main className="public-window">
       <header className="site-header">
-        <a className="brand" href="#top"><span className="brand-seal">南</span><span><b>南坡之窗</b><small>WINDOW OF NANPO</small></span></a>
+        <a className="brand" href="#top"><span className="brand-seal">乡</span><span><b>乡见西村</b><small>DISCOVER XICUN</small></span></a>
         <nav aria-label="主要导航"><a href="#about">走进南坡</a><a href="#route">行前指南</a><a href="#nearby">周边游</a><a href="#experience">游玩采摘</a><a href="#stay">山居一晚</a><a href="#goods">山野好物</a></nav>
-        <div className="header-actions"><button className="weather" onClick={onLogin}>客户登录</button><button className="weather farmer-entry" onClick={onFarmer}>农户入口</button><button className="weather" onClick={() => notify(homeData.site.visitorService ? `访客服务：${homeData.site.visitorService.phone}` : '访客服务暂未开通')}>◌ 访客服务</button><button className="manage" onClick={onManage}>内容管理 ↗</button></div>
+        <div className="header-actions"><button className="weather" onClick={onLogin}>客户登录</button><button className="weather farmer-entry" onClick={onFarmer}>村民订单</button><button className="manage" onClick={onManage}>内容管理 ↗</button></div>
       </header>
 
       <section className="hero" id="top">
@@ -234,7 +252,22 @@ export function PublicWindow({ onManage, onFarmer, onLogin }: { onManage: () => 
 
       <section className="day-trip"><div className="day-photo"><Image src="/images/village-pond.jpg" alt="大南坡村院落生活" fill sizes="40vw"/><span>ONE DAY IN NANPO</span></div><div className="day-copy"><span>一日南坡建议</span><h2>不赶路，去感受。</h2><div className="timeline"><div><b>09:30</b><p><strong>抵达大南坡</strong><small>从艺术中心开始认识村庄</small></p></div><div><b>11:00</b><p><strong>方所乡村文化</strong><small>在老戏台改成的书店慢慢读</small></p></div><div><b>13:30</b><p><strong>老村散步</strong><small>沿灰砖院落与古树寻找乡土日常</small></p></div><div><b>16:00</b><p><strong>碧山工销社</strong><small>挑一份山野物产带回家</small></p></div></div><button onClick={() => notify('一日游路线已保存')}>收藏这条路线 →</button></div></section>
 
-      <footer className="site-footer"><div className="footer-brand"><span className="brand-seal">南</span><h2>南坡之窗</h2><p>{homeData.site.summary}</p></div><div><small>来南坡</small><a href="#route">出行路线</a><a href="#nearby">百公里周边游</a><a href="#experience">游玩与采摘</a><a href="#stay">民宿山居</a><a href="#goods">乡野好物</a></div><div><small>认识南坡</small><a href="#about">村庄故事</a><a href="#about">文化空间</a><button onClick={onManage}>内容管理</button></div><div className="footer-contact"><small>访客服务</small><strong>{homeData.site.visitorService?.phone || '暂未开通'}</strong><p>{homeData.site.address}<br/>{homeData.site.visitorService?.businessHours}</p></div><div className="source-note">路线与村庄资料来自后台已发布数据。页面距离、车程为从大南坡村出发的规划估算，不代表实时导航；出发前请复核路况、班次、票务与开放安排。</div></footer>
+      <footer className="site-footer"><div className="footer-brand"><span className="brand-seal">乡</span><h2>乡见西村</h2><p>{homeData.site.summary}</p></div><div><small>来南坡</small><a href="#route">出行路线</a><a href="#nearby">百公里周边游</a><a href="#experience">游玩与采摘</a><a href="#stay">民宿山居</a><a href="#goods">乡野好物</a></div><div><small>认识南坡</small><a href="#about">村庄故事</a><a href="#about">文化空间</a><button onClick={onManage}>内容管理</button></div><div className="footer-contact"><small>访客服务</small><strong>{homeData.site.visitorService?.phone || '暂未开通'}</strong><p>{homeData.site.address}<br/>{homeData.site.visitorService?.businessHours}</p></div><div className="source-note">路线与村庄资料来自后台已发布数据。页面距离、车程为从大南坡村出发的规划估算，不代表实时导航；出发前请复核路况、班次、票务与开放安排。</div></footer>
+      <nav className="mobile-floating-nav" aria-label="手机快捷导航">
+        {([
+          ['top', '⌂', '首页'],
+          ['route', '行', '路线'],
+          ['nearby', '游', '周边'],
+          ['stay', '宿', '民宿'],
+          ['goods', '物', '农品'],
+        ] as [PublicNavId, string, string][]).map(([id, icon, label]) => <a
+          key={id}
+          href={`#${id}`}
+          className={activeNav === id ? 'active' : ''}
+          aria-current={activeNav === id ? 'location' : undefined}
+          onClick={() => setActiveNav(id)}
+        ><span aria-hidden="true">{icon}</span><b>{label}</b></a>)}
+      </nav>
       {storyItem&&<ProductStory product={storyItem} onClose={()=>setStoryItem(null)} onBuy={()=>{setStoryItem(null);setOrderItem(storyItem)}}/>}
       {orderItem&&<CheckoutFlow product={orderItem} onClose={()=>setOrderItem(null)} onLogin={onLogin}/>}
       {videoItem&&<VideoPreview item={videoItem} onClose={()=>setVideoItem(null)}/>}
@@ -244,7 +277,7 @@ export function PublicWindow({ onManage, onFarmer, onLogin }: { onManage: () => 
 }
 
 function EmptyState({ label }: { label: string }) {
-  return <div className="section-empty"><span>南</span><h3>暂无{label}</h3><p>运营人员发布内容后，将自动在这里展示。</p></div>;
+  return <div className="section-empty"><span>乡</span><h3>暂无{label}</h3><p>运营人员发布内容后，将自动在这里展示。</p></div>;
 }
 
 function Pagination({ page, total, pageSize, onChange, label, dark = false }: { page: number; total: number; pageSize: number; onChange: (page: number) => void; label: string; dark?: boolean }) {
@@ -322,7 +355,7 @@ function ProductStory({ product, onClose, onBuy }: { product: ProductCard; onClo
     {detail&&<div className="farmer-proof"><span>{detail.farmer.name.slice(0,1)}</span><div><strong>{detail.farmer.name} · {detail.farmer.villageGroup}</strong><small>{detail.farmer.introduction}</small></div><i>{detail.farmer.certificationStatus === 'APPROVED' ? '身份已审核 ✓' : '身份待审核'}</i></div>}
     <div className="process-timeline">
       {!detail&&!error&&<div className="section-empty"><span className="state-spinner"/><h3>正在读取生产档案…</h3></div>}
-      {error&&<div className="section-empty"><span>南</span><h3>{error}</h3><button onClick={reload}>重新加载</button></div>}
+      {error&&<div className="section-empty"><span>乡</span><h3>{error}</h3><button onClick={reload}>重新加载</button></div>}
       {detail&&records.length===0&&<EmptyState label="已公开生产记录"/>}
       {records.map((record,index)=><article key={record.id}><div className="process-image"><Image src={product.image || '/images/products.jpg'} alt={stageNames[record.stage] || record.stage} fill sizes="150px"/></div><span>{String(index+1).padStart(2,'0')}</span><div><small>{dateLabel(record.occurredAt)}</small><h3>{stageNames[record.stage] || record.stage}</h3><p>{record.text}</p></div></article>)}
     </div>

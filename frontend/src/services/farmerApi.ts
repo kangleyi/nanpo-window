@@ -27,7 +27,28 @@ export type FarmerProduct = {
   summary: string;
   coverUrl: string;
   status: string;
+  skus: FarmerSku[];
   recordCount: number;
+  updatedAt: string;
+};
+
+export type FarmerSku = {
+  id: number;
+  code: string;
+  specification: string;
+  unitPrice: number;
+  stockNote?: string;
+  enabled: boolean;
+};
+
+export type FarmerPlot = {
+  id: number;
+  code: string;
+  location: string;
+  area?: string;
+  mainCrop?: string;
+  coverUrl?: string;
+  status: string;
 };
 
 export type FarmRecord = {
@@ -72,6 +93,10 @@ export type FarmerOrder = {
   createdAt: string;
   items: { id: number; productName: string; specification: string; quantity: number }[];
 };
+
+export function loadFarmerOrders(): Promise<FarmerOrder[]> {
+  return apiRequest<FarmerOrder[]>('/api/farmer/orders');
+}
 
 export type AiCopy = {
   id: number;
@@ -125,7 +150,7 @@ export async function uploadRecordMedia(recordId: number, file: File): Promise<M
   const mediaType = file.type.startsWith('image/') ? 'IMAGE'
     : file.type.startsWith('audio/') ? 'AUDIO'
       : file.type.startsWith('video/') ? 'VIDEO' : 'UNSUPPORTED';
-  const ticket = await apiRequest<{ media: MediaAsset; uploadUrl: string }>('/api/media/upload-ticket', {
+  const ticket = await apiRequest<{ media: MediaAsset; uploadUrl: string; headers: Record<string, string> }>('/api/media/upload-ticket', {
     method: 'POST',
     body: JSON.stringify({
       mediaType,
@@ -136,11 +161,20 @@ export async function uploadRecordMedia(recordId: number, file: File): Promise<M
       recordId,
     }),
   });
-  await apiRequest<MediaAsset>(ticket.uploadUrl, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/octet-stream' },
-    body: bytes,
-  });
+  if (ticket.uploadUrl.startsWith('/api/')) {
+    await apiRequest<MediaAsset>(ticket.uploadUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: bytes,
+    });
+  } else {
+    const response = await fetch(ticket.uploadUrl, {
+      method: 'PUT',
+      headers: ticket.headers,
+      body: bytes,
+    });
+    if (!response.ok) throw new Error(`文件上传到对象存储失败（HTTP ${response.status}）`);
+  }
   return apiRequest<MediaAsset>(`/api/media/${ticket.media.id}/complete`, { method: 'POST' });
 }
 

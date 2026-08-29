@@ -92,12 +92,17 @@ public class OrderRepository {
         return row.map(value -> toView(value, findItems(value.id())));
     }
 
-    public List<OrderView> findAdminOrders(String status) {
+    public List<OrderView> findAdminOrders(String status, Long farmerId) {
         List<OrderRow> rows = jdbc.sql(ORDER_SELECT + """
                         WHERE (:status = 'ALL' OR o.status = :status)
+                          AND (:farmerId IS NULL OR EXISTS (
+                              SELECT 1 FROM order_item farmer_item
+                              WHERE farmer_item.order_id = o.id AND farmer_item.farmer_id = :farmerId
+                          ))
                         ORDER BY o.created_at DESC, o.id DESC LIMIT 100
                         """)
                 .param("status", status)
+                .param("farmerId", farmerId, Types.BIGINT)
                 .query(this::mapOrderRow)
                 .list();
         return rows.stream().map(row -> toView(row, findItems(row.id()))).toList();

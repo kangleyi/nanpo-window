@@ -1,6 +1,6 @@
-# 南坡之窗
+# 乡见西村
 
-南坡之窗是一个 React 19 + Spring Boot 3.5 单仓应用。开发时前后端可分别运行，交付时构建为一个 Java 21 可执行 JAR。整体功能范围和分阶段安排见 [开发计划](docs/DEVELOPMENT_PLAN.md)。
+乡见西村是一个 React 19 + Spring Boot 3.5 单仓应用。开发时前后端可分别运行，交付时构建为一个 Java 21 可执行 JAR。整体功能范围和分阶段安排见 [开发计划](docs/DEVELOPMENT_PLAN.md)。
 
 ## 当前实现
 
@@ -10,16 +10,16 @@
 - 村庄、路线、景点、旅行计划、民宿、体验、农品、农户与已审核溯源记录公开 API。
 - 民宿、游玩项目和景点后台 CRUD、排序、发布/下线及公开页即时生效。
 - 农户数据归属校验、地块/农品/SKU/生产记录写入，以及提交、驳回、审核发布状态机。
-- 统一媒体票据、受限上传、格式/大小/SHA-256 校验和审核员授权查看；本地使用临时目录对象存储。
+- 统一媒体票据、受限上传、格式/大小/SHA-256 校验和审核员授权查看；支持本地文件和腾讯云 COS 两种存储。
 - 有来源的文案助手：只读取已审核生产记录，保存来源与生成器版本，并要求农户人工确认。
 - 订单价格/商品/收款配置快照、幂等创建、人工核款、农户备货、统一发货、完成/取消/退款和状态日志。
 - 前端真实 API 数据层、加载/空/错误状态、公开目录、溯源、下单、农户经营台和村庄运营台。
 
-正式上线仍需按开发计划接入短信、对象存储、语音识别、生成模型、TTS、真实收款码和消息通知供应商，并完成 Docker、MySQL、备份恢复、安全压测与真实设备 UAT。仓库中的本地 AI 模板和演示收款配置只用于可重复开发验收，生产 profile 不会注册这些本地适配器。
+正式上线仍需按开发计划接入短信、语音识别、生成模型、TTS、真实收款码和消息通知供应商，并完成 Docker、MySQL、备份恢复、安全压测与真实设备 UAT。仓库中的本地 AI 模板和演示收款配置只用于可重复开发验收，生产 profile 不会注册这些本地适配器。
 
 ## 本地开发
 
-需要 Java 21。仅启动后端即可得到带演示数据的内存数据库：
+需要 Java 21。先复制 `.env.example` 为 `.env` 并填写 COS 参数；Spring Boot 会自动读取该文件。仅启动后端即可得到带演示数据的内存数据库：
 
 ```bash
 ./mvnw -pl backend spring-boot:run -Dskip.frontend=true
@@ -40,7 +40,28 @@ npm --prefix frontend run dev
 
 本地开发短信码默认为 `123456`。种子账号为农户 `13800000001` 和超级管理员 `13800000002`。这些仅用于本地演示；`prod` profile 不会注册本地短信网关，上线前必须实现真实 `SmsGateway`。
 
-本地媒体写入操作系统临时目录下的 `nanpo-window-media`，也可通过 `app.storage.local-root` 覆盖。上传支持 JPEG、PNG、WebP、MP3、WAV、M4A/MP4 和 WebM，并按类型限制为 10MB、30MB 和 100MB。
+开发、Docker 和生产环境默认都使用腾讯云 COS。项目启动时会自动读取根目录下未纳入版本控制的 `.env`；上传支持 JPEG、PNG、WebP、MP3、WAV、M4A/MP4 和 WebM，并按类型限制为 10MB、30MB 和 100MB。只有自动化测试会显式使用本地临时目录，避免测试访问云端。
+
+## 腾讯云 COS
+
+COS 采用浏览器直传：后端生成 5 分钟有效的 PUT 预签名地址，`SecretKey` 不会返回前端；上传完成后，后端通过对象元数据校验文件大小和 SHA-256，再将媒体状态变为 `READY`。媒体读取仍经过本系统鉴权，不会直接公开存储桶对象。
+
+复制 `.env.example` 为 `.env`，填写以下运行时变量：
+
+```dotenv
+STORAGE_TYPE=cos
+COS_SECRET_ID=AKIDxxxxxxxx
+COS_SECRET_KEY=xxxxxxxx
+COS_SECRET_TOKEN=
+COS_REGION=ap-guangzhou
+COS_BUCKET=your-bucket-1250000000
+COS_UPLOAD_PREFIX=xiangjian-xicun/uploads
+COS_UPLOAD_URL_TTL=PT5M
+```
+
+`COS_BUCKET` 必须是带 AppId 的完整名称。使用临时密钥时同时填写 `COS_SECRET_TOKEN`。建议给后端密钥仅授予指定目录的 `PutObject`、`HeadObject` 和 `GetObject` 权限。
+
+由于浏览器会直接请求 COS，需要在存储桶的跨域访问 CORS 中配置实际网站来源（开发环境可增加 `http://localhost:3000`），允许 `PUT` 方法，并允许请求头 `Content-Type`、`x-cos-meta-sha256`。生产环境不要使用 `*` 来源。
 
 ## 验证与集成构建
 
@@ -57,9 +78,10 @@ MySQL/OceanBase MySQL 模式部署通过 `DATABASE_URL`、`DATABASE_USERNAME` �
 
 ```bash
 docker build -t nanpo-window .
-docker run --env-file .env -p 8080:8080 \
-  -v nanpo-window-media:/data/uploads nanpo-window
+docker run --env-file .env -p 8080:8080 nanpo-window
 ```
+
+当前默认使用 COS，无需挂载 `/data/uploads` 数据卷。COS 密钥属于运行时参数，不会被 Docker 构建进镜像；仅在离线故障排查时才临时设置 `STORAGE_TYPE=local`。
 
 Docker 构建默认使用阿里云 Maven 公共仓库、npmmirror Node 镜像和 npm registry。需要切换企业仓库时可覆盖构建参数：
 
@@ -71,5 +93,5 @@ docker build \
   -t nanpo-window .
 ```
 
-当前 `prod` profile 会禁用本地短信、AI 和文件存储适配器；接入正式供应商前，单机验收部署不要设置
-`SPRING_PROFILES_ACTIVE=prod`。数据库密码不应写入仓库。
+当前 `prod` profile 默认启用 COS，并会禁用本地短信和 AI 适配器；接入这些正式供应商前，单机验收部署不要设置
+`SPRING_PROFILES_ACTIVE=prod`。数据库密码和 COS 密钥都不应写入仓库。

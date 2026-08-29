@@ -108,7 +108,7 @@ public class MediaRepository {
         return jdbc.sql("""
                         UPDATE media_asset SET status = 'FAILED', failure_reason = :reason,
                             version = version + 1, updated_at = CURRENT_TIMESTAMP
-                        WHERE id = :id AND version = :version AND status = 'UPLOADED'
+                        WHERE id = :id AND version = :version AND status IN ('CREATED', 'UPLOADED')
                         """)
                 .param("reason", reason).param("id", id).param("version", version).update() == 1;
     }

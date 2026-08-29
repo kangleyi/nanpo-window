@@ -20,6 +20,7 @@ import cn.nanpo.window.api.farmer.FarmerViews.PlotCommand;
 import cn.nanpo.window.api.farmer.FarmerViews.PlotView;
 import cn.nanpo.window.api.farmer.FarmerViews.ProductCommand;
 import cn.nanpo.window.api.farmer.FarmerViews.ProductManageView;
+import cn.nanpo.window.api.farmer.FarmerViews.SkuManageView;
 import cn.nanpo.window.common.error.ApiException;
 import cn.nanpo.window.common.error.ErrorCode;
 import cn.nanpo.window.infrastructure.persistence.FarmerWorkspaceRepository;
@@ -74,22 +75,115 @@ public class FarmerWorkspaceService {
         return repository.findProducts(farmer(actor).id());
     }
 
+    @Transactional(readOnly = true)
+    public List<FarmerProfileView> farmers() {
+        return repository.findActiveFarmers();
+    }
+
+    @Transactional(readOnly = true)
+    public List<PlotView> adminPlots(long farmerId) {
+        return repository.findPlots(requireFarmer(farmerId).id());
+    }
+
+    @Transactional(readOnly = true)
+    public List<ProductManageView> adminProducts(long farmerId) {
+        return repository.findProducts(requireFarmer(farmerId).id());
+    }
+
     @Transactional
     public ProductManageView createProduct(ProductCommand command, UserPrincipal actor, String ipAddress) {
         FarmerProfileView farmer = farmer(actor);
-        if (command.plotId() != null && !repository.ownsPlot(farmer.id(), command.plotId())) {
-            throw new ApiException(ErrorCode.ACCESS_DENIED, "不能使用其他农户的地块");
-        }
-        long uniqueSkuCodes = command.skus().stream().map(item -> item.code().toUpperCase()).distinct().count();
-        if (uniqueSkuCodes != command.skus().size()) {
-            throw new ApiException(ErrorCode.INVALID_ARGUMENT, "SKU 编码不能重复");
-        }
+        validateProductCommand(farmer.id(), command);
         try {
             long id = repository.createProduct(farmer.id(), command);
             auditService.record(actor.id(), "FARM_PRODUCT_CREATE", "PRODUCT", String.valueOf(id), ipAddress);
             return repository.findProduct(farmer.id(), id).orElseThrow();
         } catch (DataIntegrityViolationException exception) {
             throw new ApiException(ErrorCode.CONFLICT, "SKU 编码已存在");
+        }
+    }
+
+    @Transactional
+    public ProductManageView createProductForFarmer(
+            long farmerId, ProductCommand command, UserPrincipal actor, String ipAddress) {
+        FarmerProfileView farmer = requireFarmer(farmerId);
+        validateProductCommand(farmer.id(), command);
+        try {
+            long id = repository.createProduct(farmer.id(), command);
+            auditService.record(actor.id(), "ADMIN_PRODUCT_CREATE", "PRODUCT", String.valueOf(id), ipAddress);
+            return repository.findProduct(farmer.id(), id).orElseThrow();
+        } catch (DataIntegrityViolationException exception) {
+            throw new ApiException(ErrorCode.CONFLICT, "SKU 编码已存在");
+        }
+    }
+
+    @Transactional
+    public ProductManageView updateProductForFarmer(
+            long farmerId, long productId, ProductCommand command, UserPrincipal actor, String ipAddress) {
+        FarmerProfileView farmer = requireFarmer(farmerId);
+        if (!repository.ownsProduct(farmer.id(), productId)) {
+            throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND, "农产品不存在或不属于所选村民");
+        }
+        validateProductCommand(farmer.id(), command);
+        try {
+            if (!repository.updateProduct(farmer.id(), productId, command)) {
+                throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND, "农产品不存在");
+            }
+            auditService.record(actor.id(), "ADMIN_PRODUCT_UPDATE", "PRODUCT", String.valueOf(productId), ipAddress);
+            return repository.findProduct(farmer.id(), productId).orElseThrow();
+        } catch (DataIntegrityViolationException exception) {
+            throw new ApiException(ErrorCode.CONFLICT, "SKU 编码已被其他农产品使用");
+        }
+    }
+
+    @Transactional
+    public ProductManageView setProductPublished(
+            long farmerId, long productId, boolean published, UserPrincipal actor, String ipAddress) {
+        FarmerProfileView farmer = requireFarmer(farmerId);
+        ProductManageView product = repository.findProduct(farmer.id(), productId)
+                .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND, "农产品不存在或不属于所选村民"));
+        if (published && product.skus().stream().noneMatch(SkuManageView::enabled)) {
+            throw new ApiException(ErrorCode.CONFLICT, "至少配置一个可售规格后才能上架");
+        }
+        repository.setProductPublished(farmer.id(), productId, published);
+        auditService.record(actor.id(), published ? "ADMIN_PRODUCT_PUBLISH" : "ADMIN_PRODUCT_UNPUBLISH",
+                "PRODUCT", String.valueOf(productId), ipAddress);
+        return repository.findProduct(farmer.id(), productId).orElseThrow();
+    }
+
+    @Transactional
+    public FarmRecordView createRecordForFarmer(
+            long farmerId, FarmRecordCommand command, UserPrincipal actor, String ipAddress) {
+        FarmerProfileView farmer = requireFarmer(farmerId);
+        validateRecordCommand(farmer.id(), command);
+        long id = repository.createRecord(farmer.id(), command);
+        auditService.record(actor.id(), "ADMIN_FARM_RECORD_CREATE", "FARM_RECORD", String.valueOf(id), ipAddress);
+        return repository.findRecord(farmer.id(), id).orElseThrow();
+    }
+
+    @Transactional
+    public FarmRecordView submitRecordForFarmer(
+            long farmerId, long recordId, UserPrincipal actor, String ipAddress) {
+        FarmerProfileView farmer = requireFarmer(farmerId);
+        FarmRecordView record = repository.findRecord(farmer.id(), recordId)
+                .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND, "生产记录不存在或不属于所选村民"));
+        if (!Set.of("DRAFT", "REJECTED").contains(record.status())) {
+            throw new ApiException(ErrorCode.CONFLICT, "只有草稿或已驳回记录可以提交审核");
+        }
+        if (!repository.submitRecord(farmer.id(), recordId, record.version())) {
+            throw new ApiException(ErrorCode.CONFLICT, "记录已被修改，请刷新后重试");
+        }
+        auditService.record(actor.id(), "ADMIN_FARM_RECORD_SUBMIT", "FARM_RECORD", String.valueOf(recordId), ipAddress);
+        return repository.findRecord(farmer.id(), recordId).orElseThrow();
+    }
+
+    private void validateProductCommand(long farmerId, ProductCommand command) {
+        if (command.plotId() != null && !repository.ownsPlot(farmerId, command.plotId())) {
+            throw new ApiException(ErrorCode.ACCESS_DENIED, "不能使用其他农户的地块");
+        }
+        long uniqueSkuCodes = command.skus().stream().map(item -> item.code().toUpperCase()).distinct().count();
+        if (uniqueSkuCodes != command.skus().size()) {
+            throw new ApiException(ErrorCode.INVALID_ARGUMENT, "SKU 编码不能重复");
         }
     }
 
@@ -101,19 +195,23 @@ public class FarmerWorkspaceService {
     @Transactional
     public FarmRecordView createRecord(FarmRecordCommand command, UserPrincipal actor, String ipAddress) {
         FarmerProfileView farmer = farmer(actor);
-        if (!repository.ownsProduct(farmer.id(), command.productId())) {
-            throw new ApiException(ErrorCode.ACCESS_DENIED, "只能为本人农品添加生产记录");
+        validateRecordCommand(farmer.id(), command);
+        long id = repository.createRecord(farmer.id(), command);
+        auditService.record(actor.id(), "FARM_RECORD_CREATE", "FARM_RECORD", String.valueOf(id), ipAddress);
+        return repository.findRecord(farmer.id(), id).orElseThrow();
+    }
+
+    private void validateRecordCommand(long farmerId, FarmRecordCommand command) {
+        if (!repository.ownsProduct(farmerId, command.productId())) {
+            throw new ApiException(ErrorCode.ACCESS_DENIED, "只能为所选村民的农品添加生产记录");
         }
-        if (command.plotId() != null && !repository.ownsPlot(farmer.id(), command.plotId())) {
-            throw new ApiException(ErrorCode.ACCESS_DENIED, "不能关联其他农户的地块");
+        if (command.plotId() != null && !repository.ownsPlot(farmerId, command.plotId())) {
+            throw new ApiException(ErrorCode.ACCESS_DENIED, "不能关联其他村民的地块");
         }
         LocalDateTime latestAllowed = LocalDateTime.now(clock).plusMinutes(5);
         if (command.occurredAt().isAfter(latestAllowed)) {
             throw new ApiException(ErrorCode.INVALID_ARGUMENT, "生产时间不能晚于当前时间");
         }
-        long id = repository.createRecord(farmer.id(), command);
-        auditService.record(actor.id(), "FARM_RECORD_CREATE", "FARM_RECORD", String.valueOf(id), ipAddress);
-        return repository.findRecord(farmer.id(), id).orElseThrow();
     }
 
     @Transactional
@@ -169,6 +267,11 @@ public class FarmerWorkspaceService {
             throw new ApiException(ErrorCode.ACCESS_DENIED, "农户身份尚未通过认证");
         }
         return farmer;
+    }
+
+    private FarmerProfileView requireFarmer(long farmerId) {
+        return repository.findFarmer(farmerId)
+                .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND, "村民档案不存在或已停用"));
     }
 
     private FarmRecordView reviewable(long id) {

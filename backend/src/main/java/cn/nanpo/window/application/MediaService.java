@@ -47,15 +47,19 @@ public class MediaService {
     public UploadTicketView createTicket(
             UploadTicketCommand command, UserPrincipal actor, String ipAddress) {
         validateTicket(command);
-        if (command.recordId() != null && !repository.ownsRecord(actor.id(), command.recordId())) {
+        boolean contentOperator = actor.roles().contains("CONTENT_OPERATOR") || actor.roles().contains("SUPER_ADMIN");
+        if (command.recordId() != null && !contentOperator && !repository.ownsRecord(actor.id(), command.recordId())) {
             throw new ApiException(ErrorCode.ACCESS_DENIED, "只能为本人的生产记录上传素材");
         }
         UploadTicket ticket = objectStorage.createUploadTicket(new UploadRequest(
-                actor.id(), command.mediaType(), command.contentType(), command.sizeBytes(), command.checksumSha256()));
+                actor.id(), command.mediaType(), command.contentType(), command.sizeBytes(), command.checksumSha256(),
+                command.originalName()));
         long id = repository.create(actor.id(), command, ticket.storageKey(), ticket.expiresAt());
         if (command.recordId() != null) repository.attachToRecord(command.recordId(), id);
         auditService.record(actor.id(), "MEDIA_TICKET_CREATE", "MEDIA_ASSET", String.valueOf(id), ipAddress);
-        return new UploadTicketView(view(id), "/api/media/" + id + "/content", ticket.headers(), ticket.expiresAt());
+        String uploadUrl = ticket.uploadUrl() == null || ticket.uploadUrl().isBlank()
+                ? "/api/media/" + id + "/content" : ticket.uploadUrl();
+        return new UploadTicketView(view(id), uploadUrl, ticket.headers(), ticket.expiresAt());
     }
 
     @Transactional
@@ -83,19 +87,36 @@ public class MediaService {
     public MediaView complete(long id, UserPrincipal actor, String ipAddress) {
         MediaRow media = owned(id, actor);
         if ("READY".equals(media.status()) || "FAILED".equals(media.status())) return MediaRepository.view(media);
-        if (!"UPLOADED".equals(media.status())) {
+        if (!"CREATED".equals(media.status()) && !"UPLOADED".equals(media.status())) {
             throw new ApiException(ErrorCode.CONFLICT, "文件尚未上传");
         }
+        StoredObject stored;
         try {
-            StoredObject stored = objectStorage.stat(media.storageKey());
-            String failure = stored.sizeBytes() != media.sizeBytes() ? "文件大小校验失败"
-                    : media.checksumSha256() != null && !media.checksumSha256().equalsIgnoreCase(stored.checksumSha256())
-                            ? "文件摘要校验失败" : null;
-            if (failure == null) repository.markReady(id, media.version(), stored.checksumSha256());
-            else repository.markFailed(id, media.version(), failure);
+            stored = objectStorage.stat(media.storageKey());
         } catch (RuntimeException exception) {
             repository.markFailed(id, media.version(), "对象存储校验失败");
+            return auditedResult(id, actor, ipAddress);
         }
+        String failure = stored.sizeBytes() != media.sizeBytes() ? "文件大小校验失败"
+                : media.checksumSha256() != null && !media.checksumSha256().equalsIgnoreCase(stored.checksumSha256())
+                        ? "文件摘要校验失败" : null;
+        if (failure != null) {
+            repository.markFailed(id, media.version(), failure);
+        } else {
+            if ("CREATED".equals(media.status())) {
+                if (!repository.markUploaded(id, media.version())) {
+                    throw new ApiException(ErrorCode.CONFLICT, "媒体状态已更新，请刷新后重试");
+                }
+                media = repository.find(id).orElseThrow();
+            }
+            if (!repository.markReady(id, media.version(), stored.checksumSha256())) {
+                throw new ApiException(ErrorCode.CONFLICT, "媒体状态已更新，请刷新后重试");
+            }
+        }
+        return auditedResult(id, actor, ipAddress);
+    }
+
+    private MediaView auditedResult(long id, UserPrincipal actor, String ipAddress) {
         MediaView result = view(id);
         auditService.record(actor.id(), "READY".equals(result.status()) ? "MEDIA_READY" : "MEDIA_FAILED",
                 "MEDIA_ASSET", String.valueOf(id), ipAddress);

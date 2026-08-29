@@ -49,6 +49,34 @@ public class FarmerWorkspaceRepository {
                 .optional();
     }
 
+    public Optional<FarmerProfileView> findFarmer(long farmerId) {
+        return jdbc.sql("""
+                        SELECT id, farmer_code, name, village_group, introduction, certification_status
+                        FROM farmer_profile
+                        WHERE id = :farmerId AND status = 'ACTIVE'
+                        """)
+                .param("farmerId", farmerId)
+                .query((rs, rowNum) -> new FarmerProfileView(
+                        rs.getLong("id"), rs.getString("farmer_code"), rs.getString("name"),
+                        rs.getString("village_group"), rs.getString("introduction"),
+                        rs.getString("certification_status")))
+                .optional();
+    }
+
+    public List<FarmerProfileView> findActiveFarmers() {
+        return jdbc.sql("""
+                        SELECT id, farmer_code, name, village_group, introduction, certification_status
+                        FROM farmer_profile
+                        WHERE status = 'ACTIVE'
+                        ORDER BY village_group, name, id
+                        """)
+                .query((rs, rowNum) -> new FarmerProfileView(
+                        rs.getLong("id"), rs.getString("farmer_code"), rs.getString("name"),
+                        rs.getString("village_group"), rs.getString("introduction"),
+                        rs.getString("certification_status")))
+                .list();
+    }
+
     public FarmerDashboardView dashboard(FarmerProfileView farmer) {
         long plotCount = farmerCount("land_plot", farmer.id(), null);
         long productCount = farmerCount("product", farmer.id(), null);
@@ -159,6 +187,74 @@ public class FarmerWorkspaceRepository {
                     .update();
         }
         return productId;
+    }
+
+    public boolean updateProduct(long farmerId, long productId, ProductCommand command) {
+        int updated = jdbc.sql("""
+                        UPDATE product
+                        SET land_plot_id = :plotId, name = :name, category = :category,
+                            season_text = :season, summary = :summary, cover_url = :coverUrl,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :productId AND farmer_id = :farmerId
+                        """)
+                .param("plotId", command.plotId(), Types.BIGINT)
+                .param("name", command.name())
+                .param("category", command.category())
+                .param("season", command.season())
+                .param("summary", command.summary())
+                .param("coverUrl", command.coverUrl())
+                .param("productId", productId)
+                .param("farmerId", farmerId)
+                .update();
+        if (updated == 0) {
+            return false;
+        }
+        jdbc.sql("UPDATE product_sku SET enabled = FALSE, updated_at = CURRENT_TIMESTAMP WHERE product_id = :productId")
+                .param("productId", productId)
+                .update();
+        for (SkuCommand sku : command.skus()) {
+            int skuUpdated = jdbc.sql("""
+                            UPDATE product_sku
+                            SET specification = :specification, unit_price = :unitPrice,
+                                stock_note = :stockNote, enabled = TRUE, updated_at = CURRENT_TIMESTAMP
+                            WHERE product_id = :productId AND sku_code = :code
+                            """)
+                    .param("specification", sku.specification())
+                    .param("unitPrice", sku.unitPrice())
+                    .param("stockNote", sku.stockNote(), Types.VARCHAR)
+                    .param("productId", productId)
+                    .param("code", sku.code())
+                    .update();
+            if (skuUpdated == 0) {
+                jdbc.sql("""
+                                INSERT INTO product_sku (
+                                    product_id, sku_code, specification, unit_price, stock_note, enabled
+                                ) VALUES (:productId, :code, :specification, :unitPrice, :stockNote, TRUE)
+                                """)
+                        .param("productId", productId)
+                        .param("code", sku.code())
+                        .param("specification", sku.specification())
+                        .param("unitPrice", sku.unitPrice())
+                        .param("stockNote", sku.stockNote(), Types.VARCHAR)
+                        .update();
+            }
+        }
+        return true;
+    }
+
+    public boolean setProductPublished(long farmerId, long productId, boolean published) {
+        String status = published ? "PUBLISHED" : "DRAFT";
+        return jdbc.sql("""
+                        UPDATE product
+                        SET status = :status,
+                            published_at = CASE WHEN :status = 'PUBLISHED' THEN CURRENT_TIMESTAMP ELSE NULL END,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :productId AND farmer_id = :farmerId
+                        """)
+                .param("status", status)
+                .param("productId", productId)
+                .param("farmerId", farmerId)
+                .update() == 1;
     }
 
     public Optional<ProductManageView> findProduct(long farmerId, long id) {

@@ -23,6 +23,7 @@ export type Order = {
   status: string;
   shippingCompany?: string;
   trackingNo?: string;
+  createdAt: string;
   items: OrderItem[];
 };
 

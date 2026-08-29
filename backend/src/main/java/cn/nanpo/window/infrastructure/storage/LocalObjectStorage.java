@@ -13,11 +13,11 @@ import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Profile;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 @Component
-@Profile("!prod")
+@ConditionalOnProperty(name = "app.storage.type", havingValue = "local")
 public class LocalObjectStorage implements ObjectStorage {
 
     private final Path root;

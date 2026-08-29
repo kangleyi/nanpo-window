@@ -24,6 +24,10 @@ export async function getCurrentUser(): Promise<CurrentUser> {
 export async function logout(): Promise<void> {
   try {
     await apiRequest('/api/auth/logout', { method: 'POST' });
+  } catch {
+    // A stale token or a temporary network failure must not trap the user in
+    // an authenticated screen. Server-side revocation is best effort; local
+    // credentials are always cleared below.
   } finally {
     window.localStorage.removeItem('nanpo.accessToken');
     window.localStorage.removeItem('nanpo.refreshToken');

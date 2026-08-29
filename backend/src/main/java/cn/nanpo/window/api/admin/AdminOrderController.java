@@ -32,8 +32,18 @@ public class AdminOrderController {
     }
 
     @GetMapping
-    public ApiResponse<List<OrderView>> orders(@RequestParam(defaultValue = "ALL") String status) {
-        return ApiResponse.success(service.adminOrders(status));
+    public ApiResponse<List<OrderView>> orders(
+            @RequestParam(defaultValue = "ALL") String status,
+            @RequestParam(required = false) Long farmerId) {
+        return ApiResponse.success(service.adminOrders(status, farmerId));
+    }
+
+    @PostMapping("/{id}/prepare")
+    public ApiResponse<OrderView> prepare(
+            @PathVariable long id,
+            @AuthenticationPrincipal UserPrincipal operator,
+            HttpServletRequest request) {
+        return ApiResponse.success(service.markReadyByAdmin(id, operator, clientIp(request)));
     }
 
     @PostMapping("/{id}/confirm-payment")

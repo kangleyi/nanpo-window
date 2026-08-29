@@ -46,8 +46,12 @@ public class SecurityConfig {
                                 "/api/health", "/actuator/health", "/actuator/info",
                                 "/api/openapi/**", "/api/docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/api/public/**", "/api/auth/sms/send", "/api/auth/sms/login", "/api/auth/refresh").permitAll()
-                        .requestMatchers("/api/farmer/**").hasAnyRole("FARMER", "SUPER_ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/farmer/orders").hasAnyRole("FARMER", "SUPER_ADMIN")
+                        .requestMatchers("/api/farmer/**").hasRole("SUPER_ADMIN")
+                        .requestMatchers("/api/media/**").hasAnyRole("CONTENT_OPERATOR", "REVIEWER", "SUPER_ADMIN")
                         .requestMatchers("/api/admin/orders/**").hasAnyRole("ORDER_OPERATOR", "SUPER_ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/admin/farmers").hasAnyRole(
+                                "CONTENT_OPERATOR", "ORDER_OPERATOR", "SUPER_ADMIN")
                         .requestMatchers("/api/admin/reviews/**").hasAnyRole("REVIEWER", "SUPER_ADMIN")
                         .requestMatchers("/api/admin/**").hasAnyRole("CONTENT_OPERATOR", "SUPER_ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/me").authenticated()

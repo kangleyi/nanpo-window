@@ -1,6 +1,8 @@
 spring:
   application:
     name: nanpo-window
+  config:
+    import: optional:file:.env[.properties]
   datasource:
     url: ${DATABASE_URL:jdbc:h2:mem:nanpo;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1}
     username: ${DATABASE_USERNAME:sa}
@@ -41,3 +43,14 @@ app:
     refresh-token-ttl: P30D
     sms-code-ttl: PT5M
     local-code: ${LOCAL_SMS_CODE:123456}
+  storage:
+    type: ${STORAGE_TYPE:cos}
+    local-root: ${APP_STORAGE_LOCAL_ROOT:${java.io.tmpdir}/nanpo-window-media}
+    cos:
+      secret-id: ${COS_SECRET_ID:}
+      secret-key: ${COS_SECRET_KEY:}
+      secret-token: ${COS_SECRET_TOKEN:}
+      region: ${COS_REGION:}
+      bucket: ${COS_BUCKET:}
+      upload-prefix: ${COS_UPLOAD_PREFIX:xiangjian-xicun/uploads}
+      upload-url-ttl: ${COS_UPLOAD_URL_TTL:PT5M}

@@ -18,6 +18,7 @@ FROM eclipse-temurin:21-jre AS runner
 WORKDIR /app
 
 ENV PORT=8080 \
+    STORAGE_TYPE=cos \
     APP_STORAGE_LOCAL_ROOT=/data/uploads
 
 COPY --from=builder /workspace/backend/target/nanpo-window-backend-0.1.0-SNAPSHOT.jar /app/app.jar

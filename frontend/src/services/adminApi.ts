@@ -1,6 +1,6 @@
 import { apiRequest } from './api';
 import { PageData } from './publicApi';
-import { FarmRecord } from './farmerApi';
+import { FarmerPlot, FarmerProduct, FarmerProfile, FarmRecord } from './farmerApi';
 import { Order } from './orderApi';
 
 export type ContentKind = 'homestays' | 'experiences';
@@ -77,8 +77,72 @@ export function rejectFarmRecord(recordId: number, reviewNote: string): Promise<
   });
 }
 
-export function loadAdminOrders(): Promise<Order[]> {
-  return apiRequest<Order[]>('/api/admin/orders?status=ALL');
+export type ProductCommand = {
+  plotId?: number;
+  name: string;
+  category: string;
+  season: string;
+  summary: string;
+  coverUrl: string;
+  skus: { code: string; specification: string; unitPrice: number; stockNote?: string }[];
+};
+
+export function loadFarmers(): Promise<FarmerProfile[]> {
+  return apiRequest<FarmerProfile[]>('/api/admin/farmers');
+}
+
+export function loadFarmerPlots(farmerId: number): Promise<FarmerPlot[]> {
+  return apiRequest<FarmerPlot[]>(`/api/admin/farmers/${farmerId}/plots`);
+}
+
+export function loadFarmerProducts(farmerId: number): Promise<FarmerProduct[]> {
+  return apiRequest<FarmerProduct[]>(`/api/admin/farmers/${farmerId}/products`);
+}
+
+export function createFarmerProduct(farmerId: number, command: ProductCommand): Promise<FarmerProduct> {
+  return apiRequest<FarmerProduct>(`/api/admin/farmers/${farmerId}/products`, {
+    method: 'POST', body: JSON.stringify(command),
+  });
+}
+
+export function updateFarmerProduct(farmerId: number, productId: number, command: ProductCommand): Promise<FarmerProduct> {
+  return apiRequest<FarmerProduct>(`/api/admin/farmers/${farmerId}/products/${productId}`, {
+    method: 'PUT', body: JSON.stringify(command),
+  });
+}
+
+export function setFarmerProductPublished(farmerId: number, productId: number, published: boolean): Promise<FarmerProduct> {
+  return apiRequest<FarmerProduct>(
+    `/api/admin/farmers/${farmerId}/products/${productId}/${published ? 'publish' : 'unpublish'}`,
+    { method: 'POST' },
+  );
+}
+
+export function createFarmerRecord(farmerId: number, command: {
+  productId: number;
+  plotId?: number;
+  stage: string;
+  occurredAt: string;
+  originalText: string;
+  truthConfirmed: boolean;
+}): Promise<FarmRecord> {
+  return apiRequest<FarmRecord>(`/api/admin/farmers/${farmerId}/records`, {
+    method: 'POST', body: JSON.stringify(command),
+  });
+}
+
+export function submitFarmerRecord(farmerId: number, recordId: number): Promise<FarmRecord> {
+  return apiRequest<FarmRecord>(`/api/admin/farmers/${farmerId}/records/${recordId}/submit`, { method: 'POST' });
+}
+
+export function loadAdminOrders(status = 'ALL', farmerId?: number): Promise<Order[]> {
+  const params = new URLSearchParams({ status });
+  if (farmerId) params.set('farmerId', String(farmerId));
+  return apiRequest<Order[]>(`/api/admin/orders?${params}`);
+}
+
+export function markAdminOrderReady(orderId: number): Promise<Order> {
+  return apiRequest<Order>(`/api/admin/orders/${orderId}/prepare`, { method: 'POST' });
 }
 
 export function confirmOrderPayment(orderId: number): Promise<Order> {
