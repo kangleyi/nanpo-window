@@ -2,6 +2,8 @@
 
 同一仓库中的前后端分离项目：前端使用 React + Vite，后端使用 Java 21 + Spring Boot。开发时可分别运行，发布时打包为一个由 Spring Boot 直接提供页面与 API 的可执行 JAR。
 
+整体系统设计、功能范围和分阶段研发安排见 [开发计划文档](docs/DEVELOPMENT_PLAN.md)。
+
 ## 本地开发
 
 ```bash
