@@ -1,0 +1,12 @@
+node_modules
+.next
+.vinext
+.wrangler
+dist
+.git
+.openai
+outputs
+*.zip
+*.tar.gz
+.DS_Store
+npm-debug.log*
