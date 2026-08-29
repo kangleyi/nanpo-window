@@ -48,6 +48,9 @@ public class MediaService {
             UploadTicketCommand command, UserPrincipal actor, String ipAddress) {
         validateTicket(command);
         boolean contentOperator = actor.roles().contains("CONTENT_OPERATOR") || actor.roles().contains("SUPER_ADMIN");
+        if (command.recordId() == null && !contentOperator) {
+            throw new ApiException(ErrorCode.ACCESS_DENIED, "只有内容管理员可以上传上架素材");
+        }
         if (command.recordId() != null && !contentOperator && !repository.ownsRecord(actor.id(), command.recordId())) {
             throw new ApiException(ErrorCode.ACCESS_DENIED, "只能为本人的生产记录上传素材");
         }
@@ -138,6 +141,16 @@ public class MediaService {
         }
         if (!"READY".equals(media.status())) {
             throw new ApiException(ErrorCode.CONFLICT, "媒体尚未处理完成");
+        }
+        return new MediaContent(media.originalName(), media.contentType(), objectStorage.read(media.storageKey()));
+    }
+
+    @Transactional(readOnly = true)
+    public MediaContent publicContent(long id) {
+        MediaRow media = repository.find(id)
+                .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND, "媒体不存在"));
+        if (!"READY".equals(media.status()) || repository.isRecordMedia(id)) {
+            throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND, "公开媒体不存在");
         }
         return new MediaContent(media.originalName(), media.contentType(), objectStorage.read(media.storageKey()));
     }

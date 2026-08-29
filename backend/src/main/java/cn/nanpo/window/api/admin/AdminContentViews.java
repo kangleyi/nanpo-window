@@ -8,6 +8,7 @@ import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 public final class AdminContentViews {
@@ -23,6 +24,9 @@ public final class AdminContentViews {
             @NotBlank @Size(max = 100) String price,
             @NotBlank @Size(max = 500) String coverUrl,
             @Size(max = 32) String consultationPhone,
+            @Size(max = 1000)
+            @Pattern(regexp = "^$|^https?://[^\\s]+$", message = "民宿链接必须以 http:// 或 https:// 开头")
+            String externalUrl,
             @Min(0) Integer sortOrder) {
     }
 
@@ -35,6 +39,7 @@ public final class AdminContentViews {
             String price,
             String coverUrl,
             String consultationPhone,
+            String externalUrl,
             int sortOrder,
             String status,
             LocalDateTime publishedAt,

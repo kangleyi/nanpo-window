@@ -39,7 +39,7 @@ public class ContentAdminRepository {
     public List<HomestayAdminView> findHomestays(String status, int limit, int offset) {
         return jdbc.sql("""
                         SELECT id, name, lodging_type, summary, capacity_text, price_text,
-                               cover_url, consultation_phone, sort_order, status, published_at, updated_at
+                               cover_url, consultation_phone, external_url, sort_order, status, published_at, updated_at
                         FROM homestay
                         WHERE (:status = 'ALL' OR status = :status)
                         ORDER BY sort_order, id
@@ -51,7 +51,8 @@ public class ContentAdminRepository {
                 .query((rs, rowNum) -> new HomestayAdminView(
                         rs.getLong("id"), rs.getString("name"), rs.getString("lodging_type"),
                         rs.getString("summary"), rs.getString("capacity_text"), rs.getString("price_text"),
-                        rs.getString("cover_url"), rs.getString("consultation_phone"), rs.getInt("sort_order"),
+                        rs.getString("cover_url"), rs.getString("consultation_phone"), rs.getString("external_url"),
+                        rs.getInt("sort_order"),
                         rs.getString("status"), localDateTime(rs.getTimestamp("published_at")),
                         localDateTime(rs.getTimestamp("updated_at"))))
                 .list();
@@ -64,14 +65,15 @@ public class ContentAdminRepository {
     public Optional<HomestayAdminView> findHomestay(long id) {
         return jdbc.sql("""
                         SELECT id, name, lodging_type, summary, capacity_text, price_text,
-                               cover_url, consultation_phone, sort_order, status, published_at, updated_at
+                               cover_url, consultation_phone, external_url, sort_order, status, published_at, updated_at
                         FROM homestay WHERE id = :id
                         """)
                 .param("id", id)
                 .query((rs, rowNum) -> new HomestayAdminView(
                         rs.getLong("id"), rs.getString("name"), rs.getString("lodging_type"),
                         rs.getString("summary"), rs.getString("capacity_text"), rs.getString("price_text"),
-                        rs.getString("cover_url"), rs.getString("consultation_phone"), rs.getInt("sort_order"),
+                        rs.getString("cover_url"), rs.getString("consultation_phone"), rs.getString("external_url"),
+                        rs.getInt("sort_order"),
                         rs.getString("status"), localDateTime(rs.getTimestamp("published_at")),
                         localDateTime(rs.getTimestamp("updated_at"))))
                 .optional();
@@ -83,8 +85,8 @@ public class ContentAdminRepository {
             PreparedStatement statement = connection.prepareStatement("""
                     INSERT INTO homestay (
                         name, lodging_type, summary, capacity_text, price_text,
-                        cover_url, consultation_phone, sort_order, status
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'DRAFT')
+                        cover_url, consultation_phone, external_url, sort_order, status
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'DRAFT')
                     """, new String[] { "id" });
             statement.setString(1, command.name());
             statement.setString(2, command.type());
@@ -93,7 +95,8 @@ public class ContentAdminRepository {
             statement.setString(5, command.price());
             statement.setString(6, command.coverUrl());
             nullableString(statement, 7, command.consultationPhone());
-            statement.setInt(8, sortOrder(command.sortOrder()));
+            nullableString(statement, 8, command.externalUrl());
+            statement.setInt(9, sortOrder(command.sortOrder()));
             return statement;
         }, keys);
         return keys.getKey().longValue();
@@ -104,7 +107,7 @@ public class ContentAdminRepository {
                         UPDATE homestay
                         SET name = :name, lodging_type = :type, summary = :summary,
                             capacity_text = :capacity, price_text = :price, cover_url = :coverUrl,
-                            consultation_phone = :phone, sort_order = :sortOrder,
+                            consultation_phone = :phone, external_url = :externalUrl, sort_order = :sortOrder,
                             updated_at = CURRENT_TIMESTAMP
                         WHERE id = :id
                         """)
@@ -115,6 +118,7 @@ public class ContentAdminRepository {
                 .param("price", command.price())
                 .param("coverUrl", command.coverUrl())
                 .param("phone", command.consultationPhone(), Types.VARCHAR)
+                .param("externalUrl", command.externalUrl(), Types.VARCHAR)
                 .param("sortOrder", sortOrder(command.sortOrder()))
                 .param("id", id)
                 .update();

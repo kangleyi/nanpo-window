@@ -15,6 +15,7 @@ export type ManagedContent = {
   sortOrder: number;
   status: string;
   consultationPhone?: string;
+  externalUrl?: string;
   capacity?: string;
   season?: string;
   duration?: string;
@@ -30,6 +31,7 @@ export type ContentCommand = {
   coverUrl: string;
   sortOrder: number;
   consultationPhone?: string;
+  externalUrl?: string;
   capacity?: string;
   season?: string;
   duration?: string;
@@ -59,6 +61,32 @@ export function setManagedContentPublished(kind: ContentKind, id: number, publis
   return apiRequest(`/api/admin/content/${kind}/${id}/${published ? 'publish' : 'unpublish'}`, { method: 'POST' });
 }
 
+export type ConsultationInquiry = {
+  id: number;
+  sourceType: 'HOMESTAY' | 'EXPERIENCE';
+  sourceId: number;
+  targetName: string;
+  visitAt: string;
+  partySize: number;
+  callbackPhone: string;
+  note?: string;
+  status: 'NEW' | 'CONTACTED' | 'CLOSED';
+  createdAt: string;
+  updatedAt: string;
+};
+
+export function loadConsultationInquiries(status = 'ALL', sourceType = 'ALL'): Promise<ConsultationInquiry[]> {
+  const params = new URLSearchParams({ status, sourceType });
+  return apiRequest<ConsultationInquiry[]>(`/api/admin/inquiries?${params}`);
+}
+
+export function updateConsultationInquiryStatus(
+  id: number,
+  action: 'contacted' | 'closed',
+): Promise<ConsultationInquiry> {
+  return apiRequest<ConsultationInquiry>(`/api/admin/inquiries/${id}/${action}`, { method: 'POST' });
+}
+
 export function loadFarmReviewQueue(): Promise<FarmRecord[]> {
   return apiRequest<FarmRecord[]>('/api/admin/reviews/records?status=PENDING_REVIEW');
 }
@@ -78,13 +106,12 @@ export function rejectFarmRecord(recordId: number, reviewNote: string): Promise<
 }
 
 export type ProductCommand = {
-  plotId?: number;
   name: string;
   category: string;
   season: string;
   summary: string;
   coverUrl: string;
-  skus: { code: string; specification: string; unitPrice: number; stockNote?: string }[];
+  skus: { id?: number; specification: string; unitPrice: number; stockNote?: string }[];
 };
 
 export function loadFarmers(): Promise<FarmerProfile[]> {
@@ -120,7 +147,6 @@ export function setFarmerProductPublished(farmerId: number, productId: number, p
 
 export function createFarmerRecord(farmerId: number, command: {
   productId: number;
-  plotId?: number;
   stage: string;
   occurredAt: string;
   originalText: string;

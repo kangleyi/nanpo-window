@@ -47,7 +47,7 @@ public final class FarmerViews {
     }
 
     public record SkuCommand(
-            @NotBlank @Size(max = 64) String code,
+            Long id,
             @NotBlank @Size(max = 160) String specification,
             @NotNull @DecimalMin(value = "0.01") BigDecimal unitPrice,
             @Size(max = 255) String stockNote) {

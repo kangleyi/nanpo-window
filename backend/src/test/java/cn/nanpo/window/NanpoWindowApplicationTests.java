@@ -1,5 +1,6 @@
 package cn.nanpo.window;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -7,7 +8,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 
+import java.security.MessageDigest;
+import java.util.HexFormat;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -138,6 +142,7 @@ class NanpoWindowApplicationTests {
                   "price": "价格待确认",
                   "coverUrl": "/images/homestay.jpg",
                   "consultationPhone": "0391-0000000",
+                  "externalUrl": "https://example.com/test-homestay",
                   "sortOrder": 99
                 }
                 """;
@@ -163,7 +168,8 @@ class NanpoWindowApplicationTests {
         mockMvc.perform(get("/api/public/homestays"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total").value(4))
-                .andExpect(jsonPath("$.data.items[3].name").value("测试山居"));
+                .andExpect(jsonPath("$.data.items[3].name").value("测试山居"))
+                .andExpect(jsonPath("$.data.items[3].externalUrl").value("https://example.com/test-homestay"));
 
         String updated = command.replace("测试山居", "测试山居·已更新");
         mockMvc.perform(put("/api/admin/content/homestays/{id}", id)
@@ -197,7 +203,6 @@ class NanpoWindowApplicationTests {
                   "summary": "由村庄运营人员代村民维护的农产品。",
                   "coverUrl": "/images/products.jpg",
                   "skus": [{
-                    "code": "TEST-MILLET-500",
                     "specification": "500g / 袋",
                     "unitPrice": 18.80,
                     "stockNote": "测试现货"
@@ -218,18 +223,23 @@ class NanpoWindowApplicationTests {
                         .content(command))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("DRAFT"))
-                .andExpect(jsonPath("$.data.skus[0].code").value("TEST-MILLET-500"))
                 .andReturn().getResponse().getContentAsString();
-        long productId = objectMapper.readTree(createdBody).path("data").path("id").asLong();
+        JsonNode createdProduct = objectMapper.readTree(createdBody).path("data");
+        long productId = createdProduct.path("id").asLong();
+        long skuId = createdProduct.path("skus").path(0).path("id").asLong();
+        String generatedCode = createdProduct.path("skus").path(0).path("code").asText();
+        assertTrue(generatedCode.matches("SKU-\\d{6}-\\d{2,4}"));
 
         String updatedCommand = command.replace("测试山小米", "测试山小米·精选")
-                .replace("18.80", "19.80");
+                .replace("18.80", "19.80")
+                .replace("\"skus\": [{", "\"skus\": [{\"id\":" + skuId + ",");
         mockMvc.perform(put("/api/admin/farmers/1/products/{productId}", productId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(updatedCommand))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.name").value("测试山小米·精选"))
+                .andExpect(jsonPath("$.data.skus[0].code").value(generatedCode))
                 .andExpect(jsonPath("$.data.skus[0].unitPrice").value(19.8));
 
         mockMvc.perform(post("/api/admin/farmers/1/products/{productId}/publish", productId)
@@ -360,6 +370,44 @@ class NanpoWindowApplicationTests {
 
     @Test
     @Order(10)
+    void contentOperatorCanUploadPublicListingMedia() throws Exception {
+        String accessToken = login("13800000002").path("accessToken").asText();
+        byte[] image = new byte[] {(byte) 0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a};
+        String checksum = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(image));
+        String ticketBody = mockMvc.perform(post("/api/media/upload-ticket")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "mediaType":"IMAGE",
+                                  "contentType":"image/png",
+                                  "sizeBytes":%d,
+                                  "originalName":"listing.png",
+                                  "checksumSha256":"%s"
+                                }
+                                """.formatted(image.length, checksum)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode ticket = objectMapper.readTree(ticketBody).path("data");
+        long mediaId = ticket.path("media").path("id").asLong();
+
+        mockMvc.perform(put("/api/media/{id}/content", mediaId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                        .content(image))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/media/{id}/complete", mediaId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("READY"));
+        mockMvc.perform(get("/api/public/media/{id}/content", mediaId))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CONTENT_TYPE, "image/png"))
+                .andExpect(content().bytes(image));
+    }
+
+    @Test
+    @Order(11)
     void farmerCannotUploadProductionMedia() throws Exception {
         String farmerToken = login("13800000001").path("accessToken").asText();
         mockMvc.perform(post("/api/media/upload-ticket")
@@ -380,7 +428,7 @@ class NanpoWindowApplicationTests {
     }
 
     @Test
-    @Order(11)
+    @Order(12)
     void farmerCannotGenerateOrConfirmAiCopy() throws Exception {
         String farmerToken = login("13800000001").path("accessToken").asText();
         mockMvc.perform(post("/api/farmer/products/1/ai-copy")
@@ -396,6 +444,45 @@ class NanpoWindowApplicationTests {
                         .content("{\"confirmedText\":\"不能由村民确认。\"}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+    }
+
+    @Test
+    @Order(13)
+    void visitorCanLeaveInquiryAndAdminCanFollowItUp() throws Exception {
+        String inquiry = """
+                {
+                  "sourceType": "HOMESTAY",
+                  "sourceId": 1,
+                  "visitAt": "2099-10-01T10:30:00",
+                  "partySize": 4,
+                  "callbackPhone": "13900001234",
+                  "note": "有老人同行，希望安排一楼房间。"
+                }
+                """;
+        String createdBody = mockMvc.perform(post("/api/public/inquiries")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(inquiry))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.sourceType").value("HOMESTAY"))
+                .andExpect(jsonPath("$.data.partySize").value(4))
+                .andExpect(jsonPath("$.data.callbackPhone").value("13900001234"))
+                .andExpect(jsonPath("$.data.status").value("NEW"))
+                .andReturn().getResponse().getContentAsString();
+        long id = objectMapper.readTree(createdBody).path("data").path("id").asLong();
+
+        String accessToken = login("13800000002").path("accessToken").asText();
+        mockMvc.perform(get("/api/admin/inquiries")
+                        .param("status", "NEW")
+                        .param("sourceType", "HOMESTAY")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].id").value(id))
+                .andExpect(jsonPath("$.data[0].note").value("有老人同行，希望安排一楼房间。"));
+
+        mockMvc.perform(post("/api/admin/inquiries/{id}/contacted", id)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CONTACTED"));
     }
 
     private JsonNode login(String phone) throws Exception {

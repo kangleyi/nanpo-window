@@ -172,7 +172,7 @@ public class PublicCatalogRepository {
     public List<HomestayView> findHomestays(int limit, int offset) {
         return jdbc.sql("""
                         SELECT id, name, lodging_type, summary, capacity_text, price_text,
-                               cover_url, consultation_phone
+                               cover_url, consultation_phone, external_url
                         FROM homestay
                         WHERE status = 'PUBLISHED'
                         ORDER BY sort_order, id
@@ -188,7 +188,8 @@ public class PublicCatalogRepository {
                         rs.getString("capacity_text"),
                         rs.getString("price_text"),
                         rs.getString("cover_url"),
-                        rs.getString("consultation_phone")))
+                        rs.getString("consultation_phone"),
+                        rs.getString("external_url")))
                 .list();
     }
 
@@ -374,4 +375,3 @@ public class PublicCatalogRepository {
             String recommendedSeason) {
     }
 }
-

@@ -72,7 +72,8 @@ public final class PublicViews {
             String capacity,
             String price,
             String coverUrl,
-            String consultationPhone) {
+            String consultationPhone,
+            String externalUrl) {
     }
 
     public record ExperienceView(
@@ -136,4 +137,3 @@ public final class PublicViews {
     public record FarmerDetailView(FarmerView farmer, List<ProductSummaryView> products) {
     }
 }
-

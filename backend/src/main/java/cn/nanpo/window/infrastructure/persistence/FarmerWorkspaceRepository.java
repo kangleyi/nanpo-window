@@ -154,6 +154,12 @@ public class FarmerWorkspaceRepository {
                 .query(Long.class).single() == 1;
     }
 
+    public boolean ownsSku(long productId, long skuId) {
+        return jdbc.sql("SELECT COUNT(*) FROM product_sku WHERE id = :skuId AND product_id = :productId")
+                .param("skuId", skuId).param("productId", productId)
+                .query(Long.class).single() == 1;
+    }
+
     public long createProduct(long farmerId, ProductCommand command) {
         GeneratedKeyHolder keys = new GeneratedKeyHolder();
         jdbcTemplate.update(connection -> {
@@ -174,13 +180,14 @@ public class FarmerWorkspaceRepository {
         }, keys);
         long productId = keys.getKey().longValue();
         for (SkuCommand sku : command.skus()) {
+            String code = nextSkuCode(productId);
             jdbc.sql("""
                             INSERT INTO product_sku (
                                 product_id, sku_code, specification, unit_price, stock_note, enabled
                             ) VALUES (:productId, :code, :specification, :unitPrice, :stockNote, TRUE)
                             """)
                     .param("productId", productId)
-                    .param("code", sku.code())
+                    .param("code", code)
                     .param("specification", sku.specification())
                     .param("unitPrice", sku.unitPrice())
                     .param("stockNote", sku.stockNote(), Types.VARCHAR)
@@ -213,26 +220,27 @@ public class FarmerWorkspaceRepository {
                 .param("productId", productId)
                 .update();
         for (SkuCommand sku : command.skus()) {
-            int skuUpdated = jdbc.sql("""
+            int skuUpdated = sku.id() == null ? 0 : jdbc.sql("""
                             UPDATE product_sku
                             SET specification = :specification, unit_price = :unitPrice,
                                 stock_note = :stockNote, enabled = TRUE, updated_at = CURRENT_TIMESTAMP
-                            WHERE product_id = :productId AND sku_code = :code
+                            WHERE product_id = :productId AND id = :skuId
                             """)
                     .param("specification", sku.specification())
                     .param("unitPrice", sku.unitPrice())
                     .param("stockNote", sku.stockNote(), Types.VARCHAR)
                     .param("productId", productId)
-                    .param("code", sku.code())
+                    .param("skuId", sku.id())
                     .update();
             if (skuUpdated == 0) {
+                String code = nextSkuCode(productId);
                 jdbc.sql("""
                                 INSERT INTO product_sku (
                                     product_id, sku_code, specification, unit_price, stock_note, enabled
                                 ) VALUES (:productId, :code, :specification, :unitPrice, :stockNote, TRUE)
                                 """)
                         .param("productId", productId)
-                        .param("code", sku.code())
+                        .param("code", code)
                         .param("specification", sku.specification())
                         .param("unitPrice", sku.unitPrice())
                         .param("stockNote", sku.stockNote(), Types.VARCHAR)
@@ -240,6 +248,16 @@ public class FarmerWorkspaceRepository {
             }
         }
         return true;
+    }
+
+    private String nextSkuCode(long productId) {
+        for (int sequence = 1; sequence <= 9999; sequence++) {
+            String code = "SKU-%06d-%02d".formatted(productId, sequence);
+            long count = jdbc.sql("SELECT COUNT(*) FROM product_sku WHERE sku_code = :code")
+                    .param("code", code).query(Long.class).single();
+            if (count == 0) return code;
+        }
+        throw new IllegalStateException("无法为农产品生成新的规格编码");
     }
 
     public boolean setProductPublished(long farmerId, long productId, boolean published) {

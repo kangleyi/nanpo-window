@@ -93,13 +93,13 @@ public class FarmerWorkspaceService {
     @Transactional
     public ProductManageView createProduct(ProductCommand command, UserPrincipal actor, String ipAddress) {
         FarmerProfileView farmer = farmer(actor);
-        validateProductCommand(farmer.id(), command);
+        validateProductCommand(farmer.id(), null, command);
         try {
             long id = repository.createProduct(farmer.id(), command);
             auditService.record(actor.id(), "FARM_PRODUCT_CREATE", "PRODUCT", String.valueOf(id), ipAddress);
             return repository.findProduct(farmer.id(), id).orElseThrow();
         } catch (DataIntegrityViolationException exception) {
-            throw new ApiException(ErrorCode.CONFLICT, "SKU 编码已存在");
+            throw new ApiException(ErrorCode.CONFLICT, "规格编码生成冲突，请重试");
         }
     }
 
@@ -107,13 +107,13 @@ public class FarmerWorkspaceService {
     public ProductManageView createProductForFarmer(
             long farmerId, ProductCommand command, UserPrincipal actor, String ipAddress) {
         FarmerProfileView farmer = requireFarmer(farmerId);
-        validateProductCommand(farmer.id(), command);
+        validateProductCommand(farmer.id(), null, command);
         try {
             long id = repository.createProduct(farmer.id(), command);
             auditService.record(actor.id(), "ADMIN_PRODUCT_CREATE", "PRODUCT", String.valueOf(id), ipAddress);
             return repository.findProduct(farmer.id(), id).orElseThrow();
         } catch (DataIntegrityViolationException exception) {
-            throw new ApiException(ErrorCode.CONFLICT, "SKU 编码已存在");
+            throw new ApiException(ErrorCode.CONFLICT, "规格编码生成冲突，请重试");
         }
     }
 
@@ -124,7 +124,7 @@ public class FarmerWorkspaceService {
         if (!repository.ownsProduct(farmer.id(), productId)) {
             throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND, "农产品不存在或不属于所选村民");
         }
-        validateProductCommand(farmer.id(), command);
+        validateProductCommand(farmer.id(), productId, command);
         try {
             if (!repository.updateProduct(farmer.id(), productId, command)) {
                 throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND, "农产品不存在");
@@ -132,7 +132,7 @@ public class FarmerWorkspaceService {
             auditService.record(actor.id(), "ADMIN_PRODUCT_UPDATE", "PRODUCT", String.valueOf(productId), ipAddress);
             return repository.findProduct(farmer.id(), productId).orElseThrow();
         } catch (DataIntegrityViolationException exception) {
-            throw new ApiException(ErrorCode.CONFLICT, "SKU 编码已被其他农产品使用");
+            throw new ApiException(ErrorCode.CONFLICT, "规格编码生成冲突，请重试");
         }
     }
 
@@ -177,13 +177,21 @@ public class FarmerWorkspaceService {
         return repository.findRecord(farmer.id(), recordId).orElseThrow();
     }
 
-    private void validateProductCommand(long farmerId, ProductCommand command) {
+    private void validateProductCommand(long farmerId, Long productId, ProductCommand command) {
         if (command.plotId() != null && !repository.ownsPlot(farmerId, command.plotId())) {
             throw new ApiException(ErrorCode.ACCESS_DENIED, "不能使用其他农户的地块");
         }
-        long uniqueSkuCodes = command.skus().stream().map(item -> item.code().toUpperCase()).distinct().count();
-        if (uniqueSkuCodes != command.skus().size()) {
-            throw new ApiException(ErrorCode.INVALID_ARGUMENT, "SKU 编码不能重复");
+        long specifiedIds = command.skus().stream().filter(item -> item.id() != null).count();
+        long uniqueIds = command.skus().stream().map(item -> item.id()).filter(java.util.Objects::nonNull).distinct().count();
+        if (specifiedIds != uniqueIds) {
+            throw new ApiException(ErrorCode.INVALID_ARGUMENT, "同一规格不能重复提交");
+        }
+        if (productId == null && specifiedIds > 0) {
+            throw new ApiException(ErrorCode.INVALID_ARGUMENT, "新农产品的规格编号由后端自动生成");
+        }
+        if (productId != null && command.skus().stream()
+                .anyMatch(item -> item.id() != null && !repository.ownsSku(productId, item.id()))) {
+            throw new ApiException(ErrorCode.ACCESS_DENIED, "不能修改其他农产品的规格");
         }
     }
 

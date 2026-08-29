@@ -1,4 +1,5 @@
 import { apiRequest } from './api';
+import { MediaAsset, uploadMediaFile } from './mediaApi';
 
 export type FarmerProfile = {
   id: number;
@@ -110,13 +111,6 @@ export type AiCopy = {
   confirmedAt?: string;
 };
 
-export type MediaAsset = {
-  id: number;
-  status: string;
-  failureReason?: string;
-  checksumSha256?: string;
-};
-
 export async function loadFarmerWorkspace() {
   const [dashboard, products, records, orders, aiCopies] = await Promise.all([
     apiRequest<FarmerDashboard>('/api/farmer/dashboard'),
@@ -144,38 +138,11 @@ export function markFarmerOrderReady(orderId: number): Promise<void> {
 }
 
 export async function uploadRecordMedia(recordId: number, file: File): Promise<MediaAsset> {
-  const bytes = await file.arrayBuffer();
-  const checksum = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)))
-    .map((value) => value.toString(16).padStart(2, '0')).join('');
   const mediaType = file.type.startsWith('image/') ? 'IMAGE'
     : file.type.startsWith('audio/') ? 'AUDIO'
       : file.type.startsWith('video/') ? 'VIDEO' : 'UNSUPPORTED';
-  const ticket = await apiRequest<{ media: MediaAsset; uploadUrl: string; headers: Record<string, string> }>('/api/media/upload-ticket', {
-    method: 'POST',
-    body: JSON.stringify({
-      mediaType,
-      contentType: file.type,
-      sizeBytes: file.size,
-      originalName: file.name,
-      checksumSha256: checksum,
-      recordId,
-    }),
-  });
-  if (ticket.uploadUrl.startsWith('/api/')) {
-    await apiRequest<MediaAsset>(ticket.uploadUrl, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/octet-stream' },
-      body: bytes,
-    });
-  } else {
-    const response = await fetch(ticket.uploadUrl, {
-      method: 'PUT',
-      headers: ticket.headers,
-      body: bytes,
-    });
-    if (!response.ok) throw new Error(`文件上传到对象存储失败（HTTP ${response.status}）`);
-  }
-  return apiRequest<MediaAsset>(`/api/media/${ticket.media.id}/complete`, { method: 'POST' });
+  if (mediaType === 'UNSUPPORTED') throw new Error('不支持的媒体文件格式');
+  return (await uploadMediaFile(file, mediaType, recordId)).media;
 }
 
 export function generateAiCopy(productId: number): Promise<AiCopy> {

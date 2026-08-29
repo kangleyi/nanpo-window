@@ -2,6 +2,7 @@ import { FormEvent, ImgHTMLAttributes, useCallback, useEffect, useState } from '
 import { ApiError } from './services/api';
 import { loadPublicHomeData, loadPublicProduct, ProductDetail, PublicHomeData } from './services/publicApi';
 import { createOrder, Order, reportOrderPayment } from './services/orderApi';
+import { InquirySource, submitConsultation } from './services/inquiryApi';
 
 type ImageProps = Omit<ImgHTMLAttributes<HTMLImageElement>, 'src'> & {
   src: string;
@@ -33,9 +34,10 @@ type RouteType = 'drive' | 'rail' | 'bus';
 type AdminTab = 'overview' | 'orders' | 'stay' | 'goods' | 'experience' | 'contact';
 type NearbyPlanId = string;
 type PublicNavId = 'top' | 'route' | 'nearby' | 'stay' | 'goods';
-type StayCard = { name: string; type: string; desc: string; price: string; image: string; beds: string };
+type StayCard = { id?: number; name: string; type: string; desc: string; price: string; image: string; beds: string; externalUrl?: string };
 type ProductCard = { id?: number; name: string; icon: string; season: string; desc: string; price: string; image?: string };
-type ExperienceCard = { name: string; type: string; season: string; duration: string; desc: string; price: string; image: string; hasVideo: boolean; video?: string };
+type ExperienceCard = { id?: number; name: string; type: string; season: string; duration: string; desc: string; price: string; image: string; hasVideo: boolean; video?: string };
+type InquiryTarget = { sourceType: InquirySource; sourceId: number; name: string };
 type NearbySpot = { name: string; range: string; time: string; type: string; mark: string; tone: string; image: string; desc: string; highlights: string[]; map: string };
 type NearbyPlan = { eyebrow: string; name: string; days: string; fit: string; distance: string; summary: string; color: string; stops: { time: string; title: string; detail: string }[]; tips: string[] };
 
@@ -130,6 +132,7 @@ export function PublicWindow({ onManage, onFarmer, onLogin }: { onManage: () => 
   const [orderItem, setOrderItem] = useState<ProductCard | null>(null);
   const [storyItem, setStoryItem] = useState<ProductCard | null>(null);
   const [videoItem, setVideoItem] = useState<ExperienceCard | null>(null);
+  const [inquiryTarget, setInquiryTarget] = useState<InquiryTarget | null>(null);
   const [stayPage, setStayPage] = useState(1);
   const [goodsPage, setGoodsPage] = useState(1);
   const [experiencePage, setExperiencePage] = useState(1);
@@ -171,9 +174,9 @@ export function PublicWindow({ onManage, onFarmer, onLogin }: { onManage: () => 
 
   const routeMap = Object.fromEntries(homeData.routes.map((item) => [item.kind, { title: item.title, time: item.duration, steps: item.steps, note: item.note }]));
   const route = routeMap[routeType];
-  const publicStayCards: StayCard[] = homeData.homestays.items.map((item) => ({ name: item.name, type: item.type, desc: item.summary, price: item.price, image: item.coverUrl, beds: item.capacity }));
+  const publicStayCards: StayCard[] = homeData.homestays.items.map((item) => ({ id: item.id, name: item.name, type: item.type, desc: item.summary, price: item.price, image: item.coverUrl, beds: item.capacity, externalUrl: item.externalUrl }));
   const publicGoodsCards: ProductCard[] = homeData.products.items.map((item) => ({ id: item.id, name: item.name, icon: item.name.slice(0, 1), season: item.season, desc: item.summary, price: `¥ ${Number(item.startingPrice).toFixed(2)} 起`, image: item.coverUrl }));
-  const publicExperienceCards: ExperienceCard[] = homeData.experiences.items.map((item) => ({ name: item.name, type: item.type, season: item.season, duration: item.duration, desc: item.summary, price: item.price, image: item.coverUrl, hasVideo: Boolean(item.videoUrl), video: item.videoUrl }));
+  const publicExperienceCards: ExperienceCard[] = homeData.experiences.items.map((item) => ({ id: item.id, name: item.name, type: item.type, season: item.season, duration: item.duration, desc: item.summary, price: item.price, image: item.coverUrl, hasVideo: Boolean(item.videoUrl), video: item.videoUrl }));
   const spotTones = ['moss', 'sand', 'clay', 'ochre', 'pine', 'stone', 'blue'];
   const publicNearbySpots: NearbySpot[] = homeData.attractions.items.map((item, index) => ({ name: item.name, range: `约 ${Math.max(0, Math.round(item.distanceKm - 5))}—${Math.round(item.distanceKm + 5)} km`, time: `驾车约 ${item.driveMinutes} 分钟`, type: item.category, mark: item.name.slice(0, 1), tone: spotTones[index % spotTones.length], image: item.coverUrl, desc: item.summary, highlights: item.highlights, map: item.mapUrl }));
   const publicNearbyPlans = Object.fromEntries(homeData.travelPlans.map((item, index) => [item.slug, { eyebrow: '从南坡出发', name: item.name, days: item.duration, fit: item.suitableFor, distance: item.distance, summary: item.summary, color: ['green', 'blue', 'orange'][index % 3], stops: item.stops, tips: item.tips }])) as Record<string, NearbyPlan>;
@@ -233,14 +236,14 @@ export function PublicWindow({ onManage, onFarmer, onLogin }: { onManage: () => 
       <section className="experience-section" id="experience">
         <div className="section-kicker light"><span>04</span><small>PLAY & HARVEST</small></div>
         <div className="experience-head"><div><span>跟着节气来玩</span><h2>不只看风景，<br/>也亲手参与一场收成。</h2></div><p>采摘、农耕、手作与村庄导览都可由后台持续上架；项目可配置季节、价格、名额、图集和视频。</p></div>
-        {publicExperienceCards.length ? <><div className="experience-grid">{publicExperienceCards.slice((experiencePage-1)*experiencePageSize,experiencePage*experiencePageSize).map((item)=><article key={item.name}><div className="experience-media"><Image src={item.image} alt={item.name} fill sizes="33vw"/>{item.hasVideo?<button onClick={()=>setVideoItem(item)} aria-label={`播放${item.name}视频`}><i>▶</i><span>视频看现场</span></button>:<span className="photo-badge">图集</span>}<small>{item.season}</small></div><div className="experience-info"><span>{item.type} · {item.duration}</span><h3>{item.name}</h3><p>{item.desc}</p><footer><strong>{item.price}</strong><button onClick={()=>notify(`${item.name}已加入咨询清单`)}>咨询预约 →</button></footer></div></article>)}</div><Pagination page={experiencePage} total={publicExperienceCards.length} pageSize={experiencePageSize} onChange={setExperiencePage} label="游玩采摘项目" /></> : <EmptyState label="游玩采摘项目"/>}
+        {publicExperienceCards.length ? <><div className="experience-grid">{publicExperienceCards.slice((experiencePage-1)*experiencePageSize,experiencePage*experiencePageSize).map((item)=><article key={item.name}><div className="experience-media"><Image src={item.image} alt={item.name} fill sizes="33vw"/>{item.hasVideo?<button onClick={()=>setVideoItem(item)} aria-label={`播放${item.name}视频`}><i>▶</i><span>视频看现场</span></button>:<span className="photo-badge">图集</span>}<small>{item.season}</small></div><div className="experience-info"><span>{item.type} · {item.duration}</span><h3>{item.name}</h3><p>{item.desc}</p><footer><strong>{item.price}</strong><button disabled={!item.id} onClick={()=>item.id&&setInquiryTarget({sourceType:'EXPERIENCE',sourceId:item.id,name:item.name})}>留言咨询 →</button></footer></div></article>)}</div><Pagination page={experiencePage} total={publicExperienceCards.length} pageSize={experiencePageSize} onChange={setExperiencePage} label="游玩采摘项目" /></> : <EmptyState label="游玩采摘项目"/>}
         <div className="experience-manage"><div><span>村庄运营方</span><h3>季节变了，项目也可以随时更新。</h3><p>后台可设置开放日期、每日名额、预约电话、封面图与介绍视频。</p></div><button onClick={onManage}>去后台配置项目 →</button></div>
       </section>
 
       <section className="stay-section" id="stay">
         <div className="section-kicker"><span>05</span><small>STAY IN NANPO</small></div>
         <div className="section-title-row"><div><span>在村里住一晚</span><h2>推开院门，听见山里的清晨。</h2></div><p>现有公开资料显示村内已建设多套山居民宿。以下房源内容为高保真示例，具体名称、价格与联系方式将在管理后台录入后公开。</p></div>
-        {publicStayCards.length ? <><div className="stay-grid">{publicStayCards.slice((stayPage-1)*stayPageSize,stayPage*stayPageSize).map((item,index)=><article key={item.name}><div className="stay-image"><Image src={item.image} alt={item.name} fill sizes="33vw"/><span>{String((stayPage-1)*stayPageSize+index+1).padStart(2,'0')}</span><button onClick={() => notify(`${item.name}已加入收藏`)}>收藏 ♡</button></div><div className="stay-info"><small>{item.type}</small><h3>{item.name}</h3><p>{item.desc}</p><div><span>住 {item.beds}</span><strong>{item.price}</strong><button onClick={() => notify(homeData.site.visitorService ? `咨询电话：${homeData.site.visitorService.phone}` : '咨询方式暂未开放')}>了解详情 →</button></div></div></article>)}</div><Pagination page={stayPage} total={publicStayCards.length} pageSize={stayPageSize} onChange={setStayPage} label="民宿" /></> : <EmptyState label="民宿"/>}
+        {publicStayCards.length ? <><div className="stay-grid">{publicStayCards.slice((stayPage-1)*stayPageSize,stayPage*stayPageSize).map((item,index)=><article key={item.name}><div className="stay-image"><Image src={item.image} alt={item.name} fill sizes="33vw"/><span>{String((stayPage-1)*stayPageSize+index+1).padStart(2,'0')}</span><button onClick={() => notify(`${item.name}已加入收藏`)}>收藏 ♡</button></div><div className="stay-info"><small>{item.type}</small><h3>{item.name}</h3><p>{item.desc}</p><div><span>住 {item.beds}</span><strong>{item.price}</strong><span className="stay-actions">{item.externalUrl&&<a href={item.externalUrl} target="_blank" rel="noreferrer">民宿主页 ↗</a>}<button disabled={!item.id} onClick={()=>item.id&&setInquiryTarget({sourceType:'HOMESTAY',sourceId:item.id,name:item.name})}>留言咨询 →</button></span></div></div></article>)}</div><Pagination page={stayPage} total={publicStayCards.length} pageSize={stayPageSize} onChange={setStayPage} label="民宿" /></> : <EmptyState label="民宿"/>}
         <div className="operator-cta"><div><span>你是南坡民宿经营者？</span><h3>把你的院子，也放进这扇窗。</h3></div><button onClick={onManage}>去后台上架房源 →</button></div>
       </section>
 
@@ -271,6 +274,7 @@ export function PublicWindow({ onManage, onFarmer, onLogin }: { onManage: () => 
       {storyItem&&<ProductStory product={storyItem} onClose={()=>setStoryItem(null)} onBuy={()=>{setStoryItem(null);setOrderItem(storyItem)}}/>}
       {orderItem&&<CheckoutFlow product={orderItem} onClose={()=>setOrderItem(null)} onLogin={onLogin}/>}
       {videoItem&&<VideoPreview item={videoItem} onClose={()=>setVideoItem(null)}/>}
+      {inquiryTarget&&<InquiryModal target={inquiryTarget} onClose={()=>setInquiryTarget(null)} onSuccess={()=>{setInquiryTarget(null);notify('留言已提交，村庄运营人员会电话回访')}}/>}
       {toast&&<div className="toast">✓ {toast}</div>}
     </main>
   );
@@ -283,6 +287,49 @@ function EmptyState({ label }: { label: string }) {
 function Pagination({ page, total, pageSize, onChange, label, dark = false }: { page: number; total: number; pageSize: number; onChange: (page: number) => void; label: string; dark?: boolean }) {
   const pages = Math.max(1, Math.ceil(total / pageSize));
   return <nav className={`pagination ${dark ? 'dark' : ''}`} aria-label={`${label}分页`}><span>共 {total} 项</span><div><button disabled={page<=1} onClick={()=>onChange(page-1)} aria-label={`上一页${label}`}>←</button>{Array.from({length:pages},(_,index)=>index+1).map(item=><button key={item} className={page===item?'active':''} onClick={()=>onChange(item)} aria-current={page===item?'page':undefined}>{String(item).padStart(2,'0')}</button>)}<button disabled={page>=pages} onClick={()=>onChange(page+1)} aria-label={`下一页${label}`}>→</button></div><small>{String(page).padStart(2,'0')} / {String(pages).padStart(2,'0')}</small></nav>;
+}
+
+function InquiryModal({ target, onClose, onSuccess }: {
+  target: InquiryTarget;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const now = new Date();
+  const localNow = new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+  const tomorrow = new Date(now.getTime() + 24 * 60 * 60_000);
+  const defaultVisitAt = new Date(tomorrow.getTime() - tomorrow.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    setBusy(true);
+    setError('');
+    try {
+      await submitConsultation({
+        sourceType: target.sourceType,
+        sourceId: target.sourceId,
+        visitAt: String(form.get('visitAt')),
+        partySize: Number(form.get('partySize')),
+        callbackPhone: String(form.get('callbackPhone')),
+        note: String(form.get('note') || ''),
+      });
+      onSuccess();
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : '留言提交失败，请稍后重试');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return <div className="modal-backdrop inquiry-backdrop"><form className="inquiry-modal" onSubmit={submit}>
+    <header><div><small>{target.sourceType === 'HOMESTAY' ? 'HOMESTAY INQUIRY' : 'EXPERIENCE INQUIRY'}</small><h2>咨询 {target.name}</h2></div><button type="button" onClick={onClose} aria-label="关闭留言">×</button></header>
+    <p>留下到访计划，村庄运营人员会按回访电话与您确认接待安排。</p>
+    {error&&<div className="login-error" role="alert">{error}</div>}
+    <div className="form-grid"><label>计划到访时间<input name="visitAt" type="datetime-local" min={localNow} defaultValue={defaultVisitAt} required/></label><label>到访人数<input name="partySize" type="number" min="1" max="100" defaultValue="2" required/></label></div>
+    <label>回访电话<input name="callbackPhone" type="tel" inputMode="tel" pattern="1\d{10}" maxLength={11} placeholder="请填写 11 位手机号" required/></label>
+    <label>备注<textarea name="note" maxLength={1000} placeholder="例如：有老人同行、希望安排亲子采摘、预计入住两晚等（选填）"/></label>
+    <footer><button type="button" onClick={onClose}>取消</button><button className="checkout-primary" type="submit" disabled={busy}>{busy?'正在提交…':'提交留言 →'}</button></footer>
+  </form></div>;
 }
 
 function VideoPreview({ item, onClose }: { item: ExperienceCard; onClose: () => void }) {
