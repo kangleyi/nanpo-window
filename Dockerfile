@@ -1,28 +1,23 @@
-FROM node:22-bookworm-slim AS builder
+FROM maven:3.9-eclipse-temurin-21 AS builder
 
-WORKDIR /app
+WORKDIR /workspace
 
 ARG NPM_REGISTRY=https://registry.npmmirror.com
-
-COPY package.json package-lock.json ./
-RUN npm config set registry "${NPM_REGISTRY}" \
-    && npm ci --include=optional \
-    && node -e "import('rolldown').then(() => console.log('Rolldown native binding ready'))"
+ARG NODE_DOWNLOAD_ROOT=https://npmmirror.com/mirrors/node/
 
 COPY . .
-RUN npm run build
+RUN mvn -B -pl backend -am clean package -DskipTests \
+    -Dnpm.registry="${NPM_REGISTRY}" \
+    -Dnode.download.root="${NODE_DOWNLOAD_ROOT}"
 
-FROM node:22-bookworm-slim AS runner
+FROM eclipse-temurin:21-jre AS runner
 
 WORKDIR /app
 
-ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=8080
 
-COPY --from=builder /app/package.json /app/package-lock.json ./
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/dist ./dist
+COPY --from=builder /workspace/backend/target/nanpo-window-backend-0.1.0-SNAPSHOT.jar /app/app.jar
 
-EXPOSE 3000
+EXPOSE 8080
 
-CMD ["npm", "run", "start"]
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

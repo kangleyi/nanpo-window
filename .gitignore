@@ -1,5 +1,6 @@
 # dependencies
-/node_modules
+/node_modules/
+/frontend/node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -10,11 +11,6 @@
 
 # testing
 /coverage
-
-# next.js
-/.next/
-/.vinext/
-/out/
 
 # misc
 .DS_Store
@@ -31,9 +27,14 @@ yarn-error.log*
 .env*
 
 # deployment and generated files
-.vercel
-next-env.d.ts
-/dist/
+/next-env.d.ts
+/.next/
+/.vinext/
+/.vite/
 /.wrangler/
+/dist/
+/frontend/dist/
+/backend/target/
+/backend/src/main/resources/static/
 /outputs/
 /work/

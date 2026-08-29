@@ -1,8 +1,12 @@
-node_modules
+**/node_modules
+**/target
 .next
 .vinext
+.vite
 .wrangler
 dist
+frontend/dist
+backend/src/main/resources/static
 .git
 .idea
 .codegraph
@@ -11,3 +15,4 @@ outputs
 *.tar.gz
 .DS_Store
 npm-debug.log*
+next-env.d.ts
