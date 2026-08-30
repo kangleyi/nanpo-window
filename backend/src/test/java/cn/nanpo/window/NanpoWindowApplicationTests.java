@@ -173,7 +173,7 @@ class NanpoWindowApplicationTests {
                   "capacity": "2—3 人",
                   "price": "价格待确认",
                   "coverUrl": "/images/homestay.jpg",
-                  "consultationPhone": "0391-0000000",
+                  "consultationPhone": "13782746885",
                   "externalUrl": "https://example.com/test-homestay",
                   "sortOrder": 99
                 }

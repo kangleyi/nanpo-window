@@ -33,12 +33,36 @@ function Image({ fill, priority, style, ...props }: ImageProps) {
   );
 }
 
+async function copyText(text: string): Promise<void> {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const input = document.createElement('textarea');
+  input.value = text;
+  input.setAttribute('readonly', '');
+  input.style.position = 'fixed';
+  input.style.opacity = '0';
+  document.body.appendChild(input);
+  input.select();
+  const copied = document.execCommand('copy');
+  input.remove();
+  if (!copied) throw new Error('浏览器不支持复制到剪贴板');
+}
+
 const AMAP_POSITION: [number, number] = [113.324247, 35.345578];
 const AMAP_SHARE_URL = 'https://surl.amap.com/kfIn9ZYM8vC';
 const AMAP_WEB_KEY = (import.meta.env.VITE_AMAP_WEB_KEY ?? '').trim();
 const AMAP_SECURITY_CODE = (import.meta.env.VITE_AMAP_SECURITY_CODE ?? '').trim();
 let amapJsPromise: Promise<void> | undefined;
 let amapUiPromise: Promise<void> | undefined;
+
+const dayTripStops = [
+  { time: '09:30', title: '抵达大南坡', detail: '从艺术中心开始认识村庄' },
+  { time: '11:00', title: '方所乡村文化', detail: '在老戏台改成的书店慢慢读' },
+  { time: '13:30', title: '老村散步', detail: '沿灰砖院落与古树寻找乡土日常' },
+  { time: '16:00', title: '碧山工销社', detail: '挑一份山野物产带回家' },
+] as const;
 
 function loadMapScript(id: string, src: string, ready: () => boolean): Promise<void> {
   if (ready()) return Promise.resolve();
@@ -290,6 +314,18 @@ export function PublicWindow({ onManage, onLogin, onOrders }: { onManage: () => 
     setCurrentUser(null);
     setLoggingOut(false);
   };
+  const copyDayTripRoute = async () => {
+    const routeText = [
+      '一日南坡建议｜不赶路，去感受。',
+      ...dayTripStops.map((stop) => `${stop.time} ${stop.title}\n${stop.detail}`),
+    ].join('\n\n');
+    try {
+      await copyText(routeText);
+      notify('一日游路线已复制到剪贴板');
+    } catch {
+      notify('复制失败，请检查浏览器剪贴板权限');
+    }
+  };
 
   return (
     <main className="public-window">
@@ -368,7 +404,7 @@ export function PublicWindow({ onManage, onLogin, onOrders }: { onManage: () => 
         <div className="goods-list">{publicGoodsCards.length ? <>{publicGoodsCards.slice((goodsPage-1)*goodsPageSize,goodsPage*goodsPageSize).map((item,index)=><article key={item.name}><span className="goods-index">{String((goodsPage-1)*goodsPageSize+index+1).padStart(2,'0')}</span><div className="goods-icon">{item.icon}</div><div><small>{item.season}</small><h3><button className="goods-name" disabled={!item.id} onClick={() => setDetailItem(item)} aria-label={`查看${item.name}商品详情`}>{item.name}</button></h3><p>{item.desc}</p></div><strong>{item.price}</strong><button className="trace-button" onClick={() => setStoryItem(item)}>看过程</button><button onClick={() => setOrderItem(item)}>购买</button></article>)}<Pagination page={goodsPage} total={publicGoodsCards.length} pageSize={goodsPageSize} onChange={setGoodsPage} label="农产品" dark /></> : <EmptyState label="农产品"/>}</div>
       </section>
 
-      <section className="day-trip"><div className="day-photo"><Image src="/images/nanpo-autumn.png" alt="乡见西村秋日古建与金色树影" fill sizes="40vw"/><span>ONE DAY IN NANPO</span></div><div className="day-copy"><span>一日南坡建议</span><h2>不赶路，去感受。</h2><div className="timeline"><div><b>09:30</b><p><strong>抵达大南坡</strong><small>从艺术中心开始认识村庄</small></p></div><div><b>11:00</b><p><strong>方所乡村文化</strong><small>在老戏台改成的书店慢慢读</small></p></div><div><b>13:30</b><p><strong>老村散步</strong><small>沿灰砖院落与古树寻找乡土日常</small></p></div><div><b>16:00</b><p><strong>碧山工销社</strong><small>挑一份山野物产带回家</small></p></div></div><button onClick={() => notify('一日游路线已保存')}>收藏这条路线</button></div></section>
+      <section className="day-trip"><div className="day-photo"><Image src="/images/nanpo-autumn.png" alt="乡见西村秋日古建与金色树影" fill sizes="40vw"/><span>ONE DAY IN NANPO</span></div><div className="day-copy"><span>一日南坡建议</span><h2>不赶路，去感受。</h2><div className="timeline">{dayTripStops.map((stop)=><div key={stop.time}><b>{stop.time}</b><p><strong>{stop.title}</strong><small>{stop.detail}</small></p></div>)}</div><button onClick={copyDayTripRoute}>复制这条路线</button></div></section>
 
       <footer className="site-footer"><div className="footer-brand"><span className="brand-seal">乡</span><h2>乡见西村</h2><p>{homeData.site.summary}</p></div><div><small>来南坡</small><a href="#route">出行路线</a><a href="#nearby">特色周边游</a><a href="#experience">游玩与采摘</a><a href="#stay">民宿山居</a><a href="#goods">乡野好物</a></div><div><small>认识南坡</small><a href="#about">村庄故事</a><a href="#about">文化空间</a><button onClick={onManage}>内容管理</button></div><div className="footer-contact"><small>访客服务</small><strong>{homeData.site.visitorService?.phone || '暂未开通'}</strong><p>{homeData.site.address}<br/>{homeData.site.visitorService?.businessHours}</p></div><div className="source-note">路线与村庄资料来自后台已发布数据。页面距离、车程为从大南坡村出发的规划估算，不代表实时导航；出发前请复核路况、班次、票务与开放安排。</div></footer>
       <nav className="mobile-floating-nav" aria-label="手机快捷导航">
