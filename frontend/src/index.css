@@ -278,3 +278,26 @@ body{font-size:16px;line-height:1.65}
   .process-timeline article>span{grid-column:1;align-self:start;margin-top:2px}
   .process-timeline article>div:last-child{grid-column:2;min-width:0}
 }
+
+/* Customer payment QR choices */
+.checkout-modal-pay{width:min(780px,100%)}
+.payment-choice-note{max-width:600px;margin:8px auto 0}
+.payment-qr-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:20px 0}
+.payment-qr-card{overflow:hidden;margin:0;border:1px solid #dce2dc;border-radius:10px;background:#fff;text-align:left;box-shadow:0 6px 20px rgba(34,52,40,.06)}
+.payment-qr-card>header{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid #e4e8e3}
+.payment-qr-card>header strong{font-size:15px}
+.payment-qr-card>header small{color:#849087}
+.payment-qr-card.alipay>header strong{color:#1677ff}
+.payment-qr-card.wechat>header strong{color:#07a958}
+.payment-qr-card>img{display:block;width:100%;height:380px;padding:10px;background:#f7f8f6;object-fit:contain}
+.payment-qr-card>a{display:flex;min-height:46px;align-items:center;justify-content:center;border-top:1px solid #e2e7e2;background:#304d39;color:#fff;font-weight:700;text-decoration:none}
+.payment-qr-card.alipay>a{background:#1677ff}
+.payment-qr-card.wechat>a{background:#07a958}
+.payment-order-note{margin:0!important;padding:12px 15px;border-radius:7px;background:#eef2ec;color:#526158!important}
+
+@media(max-width:640px){
+  .checkout-modal-pay{max-height:96dvh}
+  .checkout-modal-pay .pay-panel{padding:22px 16px}
+  .payment-qr-grid{grid-template-columns:1fr;gap:14px}
+  .payment-qr-card>img{height:auto;max-height:460px}
+}
