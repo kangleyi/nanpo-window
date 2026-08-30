@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import cn.nanpo.window.api.farmer.FarmerViews.FarmerProfileView;
+import cn.nanpo.window.api.farmer.FarmerViews.FarmerCommand;
 import cn.nanpo.window.api.farmer.FarmerViews.FarmRecordCommand;
 import cn.nanpo.window.api.farmer.FarmerViews.FarmRecordView;
 import cn.nanpo.window.api.farmer.FarmerViews.PlotView;
@@ -36,6 +37,14 @@ public class AdminFarmerController {
     @GetMapping
     public ApiResponse<List<FarmerProfileView>> farmers() {
         return ApiResponse.success(service.farmers());
+    }
+
+    @PostMapping
+    public ApiResponse<FarmerProfileView> createFarmer(
+            @Valid @RequestBody FarmerCommand command,
+            @AuthenticationPrincipal UserPrincipal actor,
+            HttpServletRequest request) {
+        return ApiResponse.success(service.createFarmer(command, actor, clientIp(request)));
     }
 
     @GetMapping("/{farmerId}/plots")

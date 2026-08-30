@@ -8,6 +8,7 @@ import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,6 +16,7 @@ import cn.nanpo.window.api.admin.FarmReviewViews.ApproveRecordCommand;
 import cn.nanpo.window.api.admin.FarmReviewViews.RejectRecordCommand;
 import cn.nanpo.window.api.farmer.FarmerViews.FarmRecordCommand;
 import cn.nanpo.window.api.farmer.FarmerViews.FarmRecordView;
+import cn.nanpo.window.api.farmer.FarmerViews.FarmerCommand;
 import cn.nanpo.window.api.farmer.FarmerViews.FarmerDashboardView;
 import cn.nanpo.window.api.farmer.FarmerViews.FarmerProfileView;
 import cn.nanpo.window.api.farmer.FarmerViews.PlotCommand;
@@ -33,19 +35,29 @@ public class FarmerWorkspaceService {
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Shanghai");
     private static final Set<String> REVIEW_STATUSES = Set.of(
             "ALL", "PENDING_REVIEW", "PUBLISHED", "REJECTED");
+    private static final String INITIAL_FARMER_PASSWORD = "12345678";
 
     private final FarmerWorkspaceRepository repository;
     private final AuditService auditService;
+    private final PasswordEncoder passwordEncoder;
     private final Clock clock;
 
     @Autowired
-    public FarmerWorkspaceService(FarmerWorkspaceRepository repository, AuditService auditService) {
-        this(repository, auditService, Clock.systemDefaultZone());
+    public FarmerWorkspaceService(
+            FarmerWorkspaceRepository repository,
+            AuditService auditService,
+            PasswordEncoder passwordEncoder) {
+        this(repository, auditService, passwordEncoder, Clock.systemDefaultZone());
     }
 
-    FarmerWorkspaceService(FarmerWorkspaceRepository repository, AuditService auditService, Clock clock) {
+    FarmerWorkspaceService(
+            FarmerWorkspaceRepository repository,
+            AuditService auditService,
+            PasswordEncoder passwordEncoder,
+            Clock clock) {
         this.repository = repository;
         this.auditService = auditService;
+        this.passwordEncoder = passwordEncoder;
         this.clock = clock;
     }
 
@@ -80,6 +92,17 @@ public class FarmerWorkspaceService {
     @Transactional(readOnly = true)
     public List<FarmerProfileView> farmers() {
         return repository.findActiveFarmers();
+    }
+
+    @Transactional
+    public FarmerProfileView createFarmer(FarmerCommand command, UserPrincipal actor, String ipAddress) {
+        try {
+            long id = repository.createFarmer(command, passwordEncoder.encode(INITIAL_FARMER_PASSWORD));
+            auditService.record(actor.id(), "ADMIN_FARMER_CREATE", "FARMER_PROFILE", String.valueOf(id), ipAddress);
+            return repository.findFarmer(id).orElseThrow();
+        } catch (DataIntegrityViolationException exception) {
+            throw new ApiException(ErrorCode.CONFLICT, "该手机号已注册，无法重复添加村民");
+        }
     }
 
     @Transactional(readOnly = true)

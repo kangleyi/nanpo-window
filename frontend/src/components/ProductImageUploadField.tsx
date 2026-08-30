@@ -68,8 +68,8 @@ export function ProductImageUploadField({
         <img src={url} alt={`农产品图片 ${index + 1} 预览`}/>
         <span>{index === 0 ? '封面' : `第 ${index + 1} 张`}</span>
         <div>
-          <button type="button" disabled={index === 0} onClick={() => move(index, -1)} aria-label={`将第${index + 1}张图片前移`}>←</button>
-          <button type="button" disabled={index === urls.length - 1} onClick={() => move(index, 1)} aria-label={`将第${index + 1}张图片后移`}>→</button>
+          <button type="button" disabled={index === 0} onClick={() => move(index, -1)} aria-label={`将第${index + 1}张图片前移`}>前移</button>
+          <button type="button" disabled={index === urls.length - 1} onClick={() => move(index, 1)} aria-label={`将第${index + 1}张图片后移`}>后移</button>
           <button type="button" onClick={() => setUrls((current) => current.filter((_, itemIndex) => itemIndex !== index))} aria-label={`删除第${index + 1}张图片`}>删除</button>
         </div>
       </article>)}

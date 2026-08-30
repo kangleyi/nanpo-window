@@ -119,6 +119,7 @@
 }
 
 .content-form.product-form{width:min(920px,100%)}
+.product-toolbar .product-toolbar-actions{display:flex;gap:8px;margin-left:auto}.product-toolbar .product-toolbar-actions button{border:1px solid #2e4937;border-radius:4px;background:#2e4937;padding:10px 13px;color:#fff;font-size:8px}.product-toolbar .product-toolbar-actions button:first-child{border-color:#d3dbd4;background:#fff;color:#52675a}.product-toolbar .product-toolbar-actions button:disabled{cursor:not-allowed;opacity:.45}.farmer-form .form-note{margin:16px 0 0;padding:11px 13px;background:#eef2ec;color:#66746a;font-size:8px;line-height:1.7}.pagination button:first-child,.pagination button:last-child{padding-inline:10px;font-family:Arial,sans-serif}
 .goods-section-form{width:min(860px,100%);max-height:none;overflow:visible;border:1px solid #e0e5df;box-shadow:0 14px 38px rgba(33,52,39,.06)}
 .goods-section-form>header{padding-bottom:18px;border-bottom:1px solid #e1e6e0}
 .goods-section-form>header p{max-width:620px;margin:8px 0 0;color:#7a877e}
@@ -310,5 +311,64 @@ body{font-size:16px;line-height:1.65}
 .password-field{margin-top:14px}
 
 @media(max-width:640px){
-  .header-actions .weather{display:block!important}
+  .header-actions .weather{display:none!important}
+}
+
+/* Customer order history */
+.customer-orders-page{min-height:100vh;background:#f4f0e7;color:#263227}
+.customer-orders-header{height:78px;display:flex;align-items:center;justify-content:space-between;padding:0 clamp(20px,5vw,72px);border-bottom:1px solid var(--line);background:#f7f4ed}
+.customer-orders-header>div{display:flex;align-items:center;gap:10px}
+.customer-orders-header>div a,.customer-orders-header>div button{min-height:38px;padding:0 14px;border:1px solid var(--line);background:transparent;color:#526158;font-size:13px}
+.customer-orders-header>div button{background:#304d39;color:#fff}
+.customer-orders-content{width:min(1080px,calc(100% - 40px));margin:0 auto;padding:70px 0 100px}
+.customer-orders-title{display:flex;align-items:flex-end;justify-content:space-between;gap:30px;padding-bottom:28px;border-bottom:1px solid var(--line)}
+.customer-orders-title small{color:#a76743;font-size:12px;letter-spacing:2px}
+.customer-orders-title h1{margin:8px 0 5px;font:42px Georgia,"STSong",serif}
+.customer-orders-title p{margin:0;color:#7b857e;font-size:14px}
+.customer-orders-title>button{min-width:110px;min-height:42px;border:1px solid #cfd6cf;background:#faf8f2;color:#405849;font-size:13px}
+.customer-orders-title>button:disabled{opacity:.55}
+.customer-orders-list{display:grid;gap:18px;margin-top:28px}
+.customer-orders-list>article{border:1px solid #d9ded8;background:#fbfaf6;box-shadow:0 12px 32px rgba(36,51,40,.05)}
+.customer-orders-list>article>header{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:22px 25px;border-bottom:1px solid #e0e4df}
+.customer-orders-list>article>header small,.customer-orders-list>article>header time{display:block;color:#8a948d;font-size:12px}
+.customer-orders-list>article>header h2{margin:4px 0;color:#2b4232;font:20px Georgia,serif}
+.customer-order-status{flex:0 0 auto;padding:7px 11px;border-radius:18px;background:#ece7dd;color:#9c6849;font-size:12px}
+.status-paid,.status-ready_to_ship{background:#e4eee4;color:#477454}
+.status-shipped,.status-completed{background:#dfeae5;color:#356d55}
+.status-cancelled,.status-refunded{background:#ececec;color:#7d837f}
+.customer-order-items{padding:3px 25px}
+.customer-order-items>div{display:flex;align-items:center;gap:14px;padding:17px 0;border-bottom:1px solid #e5e8e4}
+.customer-order-items>div:last-child{border-bottom:0}
+.customer-order-items>div>span{display:grid;place-items:center;width:42px;height:42px;border-radius:50%;background:#e5ebe2;color:#42604a;font:17px "STKaiti",serif}
+.customer-order-items p{flex:1;margin:0}
+.customer-order-items strong,.customer-order-items small{display:block}
+.customer-order-items strong{font:17px Georgia,"STSong",serif}
+.customer-order-items small{margin-top:4px;color:#858f88;font-size:12px}
+.customer-order-items b{color:#a76240;font-size:14px}
+.customer-orders-list>article>footer{display:grid;grid-template-columns:.55fr .8fr 1.6fr;gap:20px;padding:19px 25px;background:#f0f1ec}
+.customer-orders-list>article>footer>div{min-width:0}
+.customer-orders-list>article>footer small,.customer-orders-list>article>footer span,.customer-orders-list>article>footer strong{display:block}
+.customer-orders-list>article>footer small{margin-bottom:5px;color:#89928c;font-size:12px}
+.customer-orders-list>article>footer span{overflow-wrap:anywhere;color:#536159;font-size:13px}
+.customer-orders-list>article>footer strong{color:#a75f3c;font-size:17px}
+.customer-orders-message,.customer-orders-empty{display:grid;place-items:center;min-height:260px;margin-top:28px;padding:35px;border:1px dashed #cbd3cb;background:#f9f7f0;text-align:center}
+.customer-orders-message.error{display:flex;justify-content:space-between;min-height:0;border-style:solid;border-color:#e1c9bb;background:#f7eae1;color:#9e5638;text-align:left}
+.customer-orders-message.error button{border:0;background:#a86140;color:#fff;padding:9px 13px}
+.customer-orders-empty>span{display:grid;place-items:center;width:48px;height:48px;border:1px solid #77887b;border-radius:50%;font:20px Georgia}
+.customer-orders-empty h2{margin:15px 0 4px;font:24px Georgia,"STSong",serif}
+.customer-orders-empty p{margin:0;color:#7f8982;font-size:14px}
+.customer-orders-empty a{margin-top:18px;padding:11px 18px;background:#304d39;color:#fff;font-size:13px}
+
+@media(max-width:700px){
+  .customer-orders-header{height:auto;min-height:68px;padding:10px 16px}
+  .customer-orders-header .brand small{display:none}
+  .customer-orders-header>div a{display:none}
+  .customer-orders-content{width:calc(100% - 28px);padding:45px 0 80px}
+  .customer-orders-title{align-items:flex-start;flex-direction:column;gap:18px}
+  .customer-orders-title h1{font-size:34px}
+  .customer-orders-title>button{width:100%}
+  .customer-orders-list>article>header{padding:18px;flex-direction:column}
+  .customer-order-items{padding-inline:18px}
+  .customer-orders-list>article>footer{grid-template-columns:1fr;gap:13px;padding:18px}
+  .customer-orders-message.error{align-items:flex-start;flex-direction:column;gap:14px}
 }

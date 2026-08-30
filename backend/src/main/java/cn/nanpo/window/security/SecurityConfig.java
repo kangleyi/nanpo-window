@@ -50,6 +50,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/public/**", "/api/auth/register", "/api/auth/login", "/api/auth/refresh").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/farmer/orders").hasAnyRole("FARMER", "SUPER_ADMIN")
                         .requestMatchers("/api/farmer/**").hasRole("SUPER_ADMIN")
+                        .requestMatchers("/api/customer/**").hasRole("CUSTOMER")
                         .requestMatchers("/api/media/**").hasAnyRole("CONTENT_OPERATOR", "REVIEWER", "SUPER_ADMIN")
                         .requestMatchers("/api/admin/orders/**").hasAnyRole("ORDER_OPERATOR", "SUPER_ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/admin/farmers").hasAnyRole(

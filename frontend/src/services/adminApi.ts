@@ -144,6 +144,19 @@ export function loadFarmers(): Promise<FarmerProfile[]> {
   return apiRequest<FarmerProfile[]>('/api/admin/farmers');
 }
 
+export type FarmerCommand = {
+  phone: string;
+  name: string;
+  villageGroup: string;
+  introduction: string;
+};
+
+export function createFarmer(command: FarmerCommand): Promise<FarmerProfile> {
+  return apiRequest<FarmerProfile>('/api/admin/farmers', {
+    method: 'POST', body: JSON.stringify(command),
+  });
+}
+
 export function loadFarmerPlots(farmerId: number): Promise<FarmerPlot[]> {
   return apiRequest<FarmerPlot[]>(`/api/admin/farmers/${farmerId}/plots`);
 }

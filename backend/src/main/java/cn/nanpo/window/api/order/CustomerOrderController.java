@@ -1,5 +1,7 @@
 package cn.nanpo.window.api.order;
 
+import java.util.List;
+
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -26,6 +28,11 @@ public class CustomerOrderController {
 
     public CustomerOrderController(OrderService service) {
         this.service = service;
+    }
+
+    @GetMapping
+    public ApiResponse<List<OrderView>> list(@AuthenticationPrincipal UserPrincipal customer) {
+        return ApiResponse.success(service.customerOrders(customer));
     }
 
     @PostMapping

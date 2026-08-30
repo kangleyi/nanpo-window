@@ -62,6 +62,10 @@ class NanpoWindowApplicationTests {
                 .andExpect(status().isOk())
                 .andExpect(forwardedUrl("/index.html"));
 
+        mockMvc.perform(get("/orders"))
+                .andExpect(status().isOk())
+                .andExpect(forwardedUrl("/index.html"));
+
         mockMvc.perform(get("/farmer"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/"));
@@ -221,6 +225,44 @@ class NanpoWindowApplicationTests {
     void farmerCannotMaintainProductsAndAdminCanManageThemForFarmer() throws Exception {
         String farmerToken = login("13800000001").path("accessToken").asText();
         String adminToken = login("13800000002").path("accessToken").asText();
+        String newFarmerPhone = "13800000099";
+        String createdFarmerBody = mockMvc.perform(post("/api/admin/farmers")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "phone": "%s",
+                                  "name": "测试村民",
+                                  "villageGroup": "大南坡村测试组",
+                                  "introduction": "用于验证后台新增村民账号与信息。"
+                                }
+                                """.formatted(newFarmerPhone)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name").value("测试村民"))
+                .andExpect(jsonPath("$.data.certificationStatus").value("APPROVED"))
+                .andReturn().getResponse().getContentAsString();
+        JsonNode createdFarmer = objectMapper.readTree(createdFarmerBody).path("data");
+        assertTrue(createdFarmer.path("code").asText().matches("NP-F-\\d{3,}"));
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"phone\":\"" + newFarmerPhone + "\",\"password\":\"12345678\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.user.roles[0]").value("FARMER"));
+
+        mockMvc.perform(post("/api/admin/farmers")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "phone": "%s",
+                                  "name": "重复村民",
+                                  "villageGroup": "测试组",
+                                  "introduction": "重复手机号"
+                                }
+                                """.formatted(newFarmerPhone)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("CONFLICT"));
         String command = """
                 {
                   "plotId": 1,
@@ -350,6 +392,13 @@ class NanpoWindowApplicationTests {
                         .content(command))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value(orderId));
+
+        mockMvc.perform(get("/api/customer/orders")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + customerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].orderNo").value(orderNo))
+                .andExpect(jsonPath("$.data[0].items[0].productName").value("太行山核桃"));
 
         mockMvc.perform(post("/api/customer/orders/{orderNo}/payment-report", orderNo)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + customerToken)
@@ -649,7 +698,7 @@ class NanpoWindowApplicationTests {
             return existing;
         }
         boolean seededAccount = phone.equals("13800000001") || phone.equals("13800000002");
-        String password = seededAccount ? "Nanpo@123" : "Customer@123";
+        String password = seededAccount ? "12345678" : "Customer@123";
         String endpoint = seededAccount ? "/api/auth/login" : "/api/auth/register";
         String response = mockMvc.perform(post(endpoint)
                         .contentType(MediaType.APPLICATION_JSON)

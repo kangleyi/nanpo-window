@@ -84,6 +84,18 @@ public class OrderRepository {
         return id.flatMap(this::findById);
     }
 
+    public List<OrderView> findCustomerOrders(long customerUserId) {
+        List<OrderRow> rows = jdbc.sql(ORDER_SELECT + """
+                        WHERE o.customer_user_id = :customerUserId
+                        ORDER BY o.created_at DESC, o.id DESC
+                        LIMIT 100
+                        """)
+                .param("customerUserId", customerUserId)
+                .query(this::mapOrderRow)
+                .list();
+        return rows.stream().map(row -> toView(row, findItems(row.id()))).toList();
+    }
+
     public Optional<OrderView> findById(long id) {
         Optional<OrderRow> row = jdbc.sql(ORDER_SELECT + " WHERE o.id = :id")
                 .param("id", id)
