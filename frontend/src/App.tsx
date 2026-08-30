@@ -3,6 +3,7 @@ import { ApiError } from './services/api';
 import { FarmRecordMedia, loadPublicHomeData, loadPublicProduct, ProductDetail, PublicHomeData } from './services/publicApi';
 import { createOrder, Order, reportOrderPayment } from './services/orderApi';
 import { InquirySource, submitConsultation } from './services/inquiryApi';
+import { CurrentUser, getCurrentUser, logout } from './services/authApi';
 import { withPageTimestamp } from './utils/cacheBust';
 
 type ImageProps = Omit<ImgHTMLAttributes<HTMLImageElement>, 'src'> & {
@@ -228,6 +229,8 @@ export function PublicWindow({ onManage, onLogin, onOrders }: { onManage: () => 
   const [homeData, setHomeData] = useState<PublicHomeData | null>(null);
   const [catalogError, setCatalogError] = useState('');
   const [activeNav, setActiveNav] = useState<PublicNavId>('top');
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>();
+  const [loggingOut, setLoggingOut] = useState(false);
   const stayPageSize = 3;
   const goodsPageSize = 4;
   const experiencePageSize = 3;
@@ -240,6 +243,16 @@ export function PublicWindow({ onManage, onLogin, onOrders }: { onManage: () => 
   }, []);
 
   useEffect(() => reloadCatalog(), [reloadCatalog]);
+
+  useEffect(() => {
+    let active = true;
+    getCurrentUser()
+      .then((user) => active && setCurrentUser(user))
+      .catch(() => active && setCurrentUser(null));
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!homeData) return;
@@ -269,13 +282,27 @@ export function PublicWindow({ onManage, onLogin, onOrders }: { onManage: () => 
   const spotTones = ['moss', 'sand', 'clay', 'ochre', 'pine', 'stone', 'blue'];
   const publicNearbySpots: NearbySpot[] = homeData.attractions.items.map((item, index) => ({ name: item.name, range: item.distanceKm <= 1 ? '村内出发' : `约 ${Math.max(0, Math.round(item.distanceKm - 5))}—${Math.round(item.distanceKm + 5)} km`, time: item.driveMinutes <= 0 ? '建议慢游 2—3 小时' : `驾车约 ${item.driveMinutes} 分钟`, type: item.category, mark: item.name.slice(0, 1), tone: spotTones[index % spotTones.length], image: item.coverUrl, desc: item.summary, highlights: item.highlights, map: item.mapUrl }));
   const publicNearbyPlans = Object.fromEntries(homeData.travelPlans.map((item, index) => [item.slug, { eyebrow: '从南坡出发', name: item.name, days: item.duration, fit: item.suitableFor, distance: item.distance, summary: item.summary, color: ['green', 'blue', 'orange'][index % 3], stops: item.stops, tips: item.tips }])) as Record<string, NearbyPlan>;
+  const canManageContent = currentUser?.roles.some((role) => ['CONTENT_OPERATOR', 'REVIEWER', 'ORDER_OPERATOR', 'SUPER_ADMIN'].includes(role));
+  const canViewOrders = currentUser?.roles.includes('CUSTOMER');
+  const exitAccount = async () => {
+    setLoggingOut(true);
+    await logout();
+    setCurrentUser(null);
+    setLoggingOut(false);
+  };
 
   return (
     <main className="public-window">
       <header className="site-header">
         <a className="brand" href="#top"><span className="brand-seal">乡</span><span><b>乡见西村</b><small>DISCOVER XICUN</small></span></a>
         <nav aria-label="主要导航"><a href="#about">走进南坡</a><a href="#route">行前指南</a><a href="#nearby">特色周边游</a><a href="#experience">游玩采摘</a><a href="#stay">山居一晚</a><a href="#goods">山野好物</a></nav>
-        <div className="header-actions"><button className="weather" onClick={onLogin}>客户登录</button><button className="customer-orders-entry" onClick={onOrders}>我的订单</button><button className="manage" onClick={onManage}>内容管理</button></div>
+        <div className="header-actions">
+          {currentUser === undefined
+            ? <button disabled>正在加载账号…</button>
+            : currentUser
+              ? <><span className="header-user" title={currentUser.phone}><small>当前用户</small><b>{currentUser.displayName}</b></span>{canManageContent&&<button className="manage" onClick={onManage}>内容管理</button>}{!canManageContent&&canViewOrders&&<button className="manage" onClick={onOrders}>我的订单</button>}<button className="header-logout" disabled={loggingOut} onClick={exitAccount}>{loggingOut?'正在退出…':'退出登录'}</button></>
+              : <button className="manage" onClick={onLogin}>登录</button>}
+        </div>
       </header>
 
       <section className="hero" id="top">
