@@ -201,7 +201,8 @@ public class OrderRepository {
                         UPDATE customer_order
                         SET status = 'PAID', payment_confirmed_at = CURRENT_TIMESTAMP,
                             version = version + 1, updated_at = CURRENT_TIMESTAMP
-                        WHERE id = :id AND version = :version AND status = 'PAYMENT_REPORTED'
+                        WHERE id = :id AND version = :version
+                          AND status IN ('CREATED', 'PAYMENT_REPORTED')
                         """)
                 .param("id", id).param("version", version).update() == 1;
     }

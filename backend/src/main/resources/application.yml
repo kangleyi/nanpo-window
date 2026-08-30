@@ -41,8 +41,7 @@ app:
   auth:
     access-token-ttl: PT2H
     refresh-token-ttl: P30D
-    sms-code-ttl: PT5M
-    local-code: ${LOCAL_SMS_CODE:123456}
+    local-account-password: ${LOCAL_ACCOUNT_PASSWORD:Nanpo@123}
   storage:
     type: ${STORAGE_TYPE:cos}
     local-root: ${APP_STORAGE_LOCAL_ROOT:${java.io.tmpdir}/nanpo-window-media}

@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.forwardedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 
@@ -60,6 +61,10 @@ class NanpoWindowApplicationTests {
         mockMvc.perform(get("/admin"))
                 .andExpect(status().isOk())
                 .andExpect(forwardedUrl("/index.html"));
+
+        mockMvc.perform(get("/farmer"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/"));
     }
 
     @Test
@@ -68,6 +73,7 @@ class NanpoWindowApplicationTests {
         mockMvc.perform(get("/api/public/site"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.name").value("大南坡村"))
+                .andExpect(jsonPath("$.data.recommendedSeason").value("全年"))
                 .andExpect(jsonPath("$.data.visitorService.scene").value("VISITOR_SERVICE"));
 
         mockMvc.perform(get("/api/public/products").param("page", "1").param("size", "20"))
@@ -109,7 +115,27 @@ class NanpoWindowApplicationTests {
 
     @Test
     @Order(6)
-    void logsInWithSmsAndResolvesRolesFromDatabase() throws Exception {
+    void registersCustomersAndLogsInWithPasswords() throws Exception {
+        String registeredPhone = "13900000009";
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"phone\":\"" + registeredPhone + "\",\"password\":\"Customer@123\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.user.phone").value(registeredPhone))
+                .andExpect(jsonPath("$.data.user.roles[0]").value("CUSTOMER"));
+
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"phone\":\"" + registeredPhone + "\",\"password\":\"Customer@123\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("CONFLICT"));
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"phone\":\"13800000001\",\"password\":\"wrong-password\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTH_CREDENTIALS_INVALID"));
+
         String phone = "13800000001";
         JsonNode tokens = login(phone);
         String accessToken = tokens.path("accessToken").asText();
@@ -376,6 +402,21 @@ class NanpoWindowApplicationTests {
         mockMvc.perform(post("/api/admin/orders/{id}/prepare", orderId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
                 .andExpect(status().isConflict());
+
+        String manualPaymentBody = mockMvc.perform(post("/api/customer/orders")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + customerToken)
+                        .header("Idempotency-Key", "manual-payment-order-0001")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(command))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CREATED"))
+                .andReturn().getResponse().getContentAsString();
+        long manualPaymentOrderId = objectMapper.readTree(manualPaymentBody).path("data").path("id").asLong();
+
+        mockMvc.perform(post("/api/admin/orders/{id}/confirm-payment", manualPaymentOrderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("PAID"));
     }
 
     @Test
@@ -607,13 +648,12 @@ class NanpoWindowApplicationTests {
         if (existing != null) {
             return existing;
         }
-        mockMvc.perform(post("/api/auth/sms/send")
+        boolean seededAccount = phone.equals("13800000001") || phone.equals("13800000002");
+        String password = seededAccount ? "Nanpo@123" : "Customer@123";
+        String endpoint = seededAccount ? "/api/auth/login" : "/api/auth/register";
+        String response = mockMvc.perform(post(endpoint)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"phone\":\"" + phone + "\"}"))
-                .andExpect(status().isOk());
-        String response = mockMvc.perform(post("/api/auth/sms/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"phone\":\"" + phone + "\",\"code\":\"123456\"}"))
+                        .content("{\"phone\":\"" + phone + "\",\"password\":\"" + password + "\"}"))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         JsonNode tokens = objectMapper.readTree(response).path("data");

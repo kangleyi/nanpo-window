@@ -29,6 +29,19 @@ public class AuthRepository {
         return findAccount("phone = :credential", phone);
     }
 
+    public Optional<PasswordAccount> findActivePasswordAccountByPhone(String phone) {
+        return jdbc.sql("""
+                        SELECT id, password_hash
+                        FROM user_account
+                        WHERE phone = :phone AND status = 'ACTIVE'
+                        """)
+                .param("phone", phone)
+                .query((rs, rowNum) -> new PasswordAccount(
+                        rs.getLong("id"),
+                        rs.getString("password_hash")))
+                .optional();
+    }
+
     public Optional<UserPrincipal> findActiveUserByAccessHash(String accessHash) {
         Optional<Long> userId = jdbc.sql("""
                         SELECT s.user_id
@@ -49,14 +62,15 @@ public class AuthRepository {
         return findAccount("id = :credential", userId);
     }
 
-    public long createCustomer(String phone) {
+    public long createCustomer(String phone, String passwordHash) {
         GeneratedKeyHolder keyHolder = new GeneratedKeyHolder();
         jdbcTemplate.update(connection -> {
             PreparedStatement statement = connection.prepareStatement(
-                    "INSERT INTO user_account (phone, display_name, status) VALUES (?, ?, 'ACTIVE')",
+                    "INSERT INTO user_account (phone, password_hash, display_name, status) VALUES (?, ?, ?, 'ACTIVE')",
                     new String[] { "id" });
             statement.setString(1, phone);
-            statement.setString(2, "客户 " + phone.substring(phone.length() - 4));
+            statement.setString(2, passwordHash);
+            statement.setString(3, "客户 " + phone.substring(phone.length() - 4));
             return statement;
         }, keyHolder);
         long userId = keyHolder.getKey().longValue();
@@ -64,6 +78,18 @@ public class AuthRepository {
                 .param("userId", userId)
                 .update();
         return userId;
+    }
+
+    public void setPasswordIfMissing(String phone, String passwordHash) {
+        jdbc.sql("""
+                        UPDATE user_account
+                        SET password_hash = :passwordHash,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE phone = :phone AND password_hash IS NULL
+                        """)
+                .param("phone", phone)
+                .param("passwordHash", passwordHash)
+                .update();
     }
 
     public long createSession(
@@ -161,6 +187,9 @@ public class AuthRepository {
     }
 
     public record RefreshSession(long id, long userId, Instant expiresAt) {
+    }
+
+    public record PasswordAccount(long id, String passwordHash) {
     }
 
     private record AccountRow(long id, String phone, String displayName) {

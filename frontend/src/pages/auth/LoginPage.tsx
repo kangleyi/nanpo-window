@@ -1,49 +1,48 @@
 import { FormEvent, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ApiError } from '../../services/api';
-import { loginWithSms, sendLoginCode } from '../../services/authApi';
+import { loginWithPassword, registerWithPassword } from '../../services/authApi';
 
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [mode, setMode] = useState<'login' | 'register'>('login');
   const [phone, setPhone] = useState('');
-  const [code, setCode] = useState('');
-  const [sent, setSent] = useState(false);
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  const sendCode = async () => {
-    setBusy(true);
-    setError('');
-    try {
-      await sendLoginCode(phone);
-      setSent(true);
-    } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : '验证码发送失败');
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (mode === 'register' && password !== confirmPassword) {
+      setError('两次输入的密码不一致');
+      return;
+    }
     setBusy(true);
     setError('');
     try {
-      const user = await loginWithSms(phone, code);
+      const user = mode === 'register'
+        ? await registerWithPassword(phone, password)
+        : await loginWithPassword(phone, password);
       const requested = (location.state as { from?: string } | null)?.from;
-      const defaultPath = user.roles.includes('FARMER')
-        ? '/farmer'
-        : user.roles.some((role) => ['CONTENT_OPERATOR', 'REVIEWER', 'ORDER_OPERATOR', 'SUPER_ADMIN'].includes(role))
+      const defaultPath = user.roles.some((role) => ['CONTENT_OPERATOR', 'REVIEWER', 'ORDER_OPERATOR', 'SUPER_ADMIN'].includes(role))
           ? '/admin'
           : '/';
-      navigate(requested || defaultPath, { replace: true });
+      navigate(mode === 'register' ? '/' : requested || defaultPath, { replace: true });
     } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : '登录失败');
+      setError(reason instanceof ApiError ? reason.message : mode === 'register' ? '注册失败' : '登录失败');
     } finally {
       setBusy(false);
     }
   };
 
-  return <main className="login-shell"><section className="login-card"><a href="/">← 返回乡见西村</a><span>账号与权限</span><h1>手机验证码登录</h1><p>村民登录后仅查看本人订单；农产品和履约信息由村庄运营人员统一维护。</p><form onSubmit={submit}><label>手机号<input required pattern="1\d{10}" inputMode="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="11 位手机号"/></label><div className="code-row"><label>验证码<input required pattern="\d{6}" inputMode="numeric" value={code} onChange={(event) => setCode(event.target.value)} placeholder="6 位验证码"/></label><button type="button" disabled={busy || phone.length !== 11} onClick={sendCode}>{sent ? '重新发送' : '获取验证码'}</button></div>{import.meta.env.DEV && sent && <small>本地开发验证码：123456</small>}{error && <div className="login-error" role="alert">{error}</div>}<button className="login-submit" disabled={busy} type="submit">{busy ? '正在验证…' : '登录 →'}</button></form><footer>登录、刷新和退出均由后端会话令牌控制，管理接口不依赖前端隐藏按钮。</footer></section></main>;
+  const switchMode = (nextMode: 'login' | 'register') => {
+    setMode(nextMode);
+    setPassword('');
+    setConfirmPassword('');
+    setError('');
+  };
+
+  return <main className="login-shell"><section className="login-card"><a href="/">← 返回乡见西村</a><span>账号与权限</span><h1>{mode === 'login' ? '手机号密码登录' : '注册顾客账号'}</h1><p>{mode === 'login' ? '使用手机号和密码登录，管理账号会自动进入对应后台。' : '注册后可直接下单，手机号将作为登录用户名。'}</p><div className="auth-mode-switch" role="tablist"><button type="button" className={mode === 'login' ? 'active' : ''} onClick={() => switchMode('login')}>登录</button><button type="button" className={mode === 'register' ? 'active' : ''} onClick={() => switchMode('register')}>注册</button></div><form onSubmit={submit}><label>手机号<input required pattern="1\d{10}" inputMode="tel" autoComplete="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="11 位手机号"/></label><label className="password-field">密码<input required minLength={8} maxLength={64} type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="8—64 位密码"/></label>{mode === 'register' && <label className="password-field">确认密码<input required minLength={8} maxLength={64} type="password" autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} placeholder="再次输入密码"/></label>}{error && <div className="login-error" role="alert">{error}</div>}<button className="login-submit" disabled={busy} type="submit">{busy ? '正在提交…' : mode === 'login' ? '登录 →' : '注册并登录 →'}</button></form><footer>密码经安全哈希后保存；请勿与支付密码或其他重要账号共用。</footer></section></main>;
 }

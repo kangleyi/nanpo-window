@@ -1,7 +1,5 @@
 package cn.nanpo.window.api.auth;
 
-import java.time.Instant;
-
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,6 +19,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
 @RestController
 public class AuthController {
@@ -33,17 +32,18 @@ public class AuthController {
         this.authService = authService;
     }
 
-    @PostMapping("/api/auth/sms/send")
-    public ApiResponse<SmsSentView> sendSms(@Valid @RequestBody SendSmsRequest request) {
-        Instant expiresAt = authService.sendCode(request.phone());
-        return ApiResponse.success(new SmsSentView(expiresAt));
+    @PostMapping("/api/auth/register")
+    public ApiResponse<AuthTokens> register(
+            @Valid @RequestBody PasswordAuthRequest request,
+            HttpServletRequest httpRequest) {
+        return ApiResponse.success(authService.register(request.phone(), request.password(), clientIp(httpRequest)));
     }
 
-    @PostMapping("/api/auth/sms/login")
+    @PostMapping("/api/auth/login")
     public ApiResponse<AuthTokens> login(
-            @Valid @RequestBody SmsLoginRequest request,
+            @Valid @RequestBody PasswordAuthRequest request,
             HttpServletRequest httpRequest) {
-        return ApiResponse.success(authService.login(request.phone(), request.code(), clientIp(httpRequest)));
+        return ApiResponse.success(authService.login(request.phone(), request.password(), clientIp(httpRequest)));
     }
 
     @PostMapping("/api/auth/refresh")
@@ -82,19 +82,11 @@ public class AuthController {
         return request.getRemoteAddr();
     }
 
-    public record SendSmsRequest(
-            @NotBlank @Pattern(regexp = PHONE_PATTERN, message = "请填写 11 位中国大陆手机号") String phone) {
-    }
-
-    public record SmsLoginRequest(
+    public record PasswordAuthRequest(
             @NotBlank @Pattern(regexp = PHONE_PATTERN, message = "请填写 11 位中国大陆手机号") String phone,
-            @NotBlank @Pattern(regexp = "^\\d{6}$", message = "请填写 6 位验证码") String code) {
+            @NotBlank @Size(min = 8, max = 64, message = "密码长度应为 8 至 64 位") String password) {
     }
 
     public record RefreshRequest(@NotBlank String refreshToken) {
     }
-
-    public record SmsSentView(Instant expiresAt) {
-    }
 }
-

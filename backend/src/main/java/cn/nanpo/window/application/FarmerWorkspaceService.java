@@ -282,7 +282,7 @@ public class FarmerWorkspaceService {
 
     private FarmerProfileView requireFarmer(long farmerId) {
         return repository.findFarmer(farmerId)
-                .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND, "村民档案不存在或已停用"));
+                .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND, "农户信息不存在或已停用"));
     }
 
     private FarmRecordView reviewable(long id) {

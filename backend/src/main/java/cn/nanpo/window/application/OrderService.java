@@ -204,11 +204,16 @@ public class OrderService {
     @Transactional
     public OrderView confirmPayment(long id, UserPrincipal operator, String ipAddress) {
         OrderView order = order(id);
-        requireStatus(order, OrderStatus.PAYMENT_REPORTED);
+        if (!Set.of(OrderStatus.CREATED.name(), OrderStatus.PAYMENT_REPORTED.name()).contains(order.status())) {
+            throw new ApiException(ErrorCode.CONFLICT, "仅待付款或待核款订单可以确认收款");
+        }
         if (!repository.confirmPayment(id, order.version())) {
             throw concurrentConflict();
         }
-        logTransition(order, OrderStatus.PAID, operator.id(), "运营人工确认到账");
+        String reason = OrderStatus.CREATED.name().equals(order.status())
+                ? "运营核对到账后人工确认（客户未主动申报）"
+                : "运营人工确认到账";
+        logTransition(order, OrderStatus.PAID, operator.id(), reason);
         auditService.record(operator.id(), "ORDER_CONFIRM_PAYMENT", "CUSTOMER_ORDER", String.valueOf(id), ipAddress);
         return order(id);
     }

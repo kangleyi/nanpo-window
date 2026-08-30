@@ -7,8 +7,7 @@ spring:
 
 app:
   auth:
-    # Production must supply a real SMS gateway before enabling SMS login.
-    local-code: ""
+    local-account-password: ${LOCAL_ACCOUNT_PASSWORD:}
   storage:
     type: ${STORAGE_TYPE:cos}
 

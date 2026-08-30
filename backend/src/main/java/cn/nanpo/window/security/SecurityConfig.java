@@ -12,6 +12,8 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -45,7 +47,7 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/health", "/actuator/health", "/actuator/info",
                                 "/api/openapi/**", "/api/docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                        .requestMatchers("/api/public/**", "/api/auth/sms/send", "/api/auth/sms/login", "/api/auth/refresh").permitAll()
+                        .requestMatchers("/api/public/**", "/api/auth/register", "/api/auth/login", "/api/auth/refresh").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/farmer/orders").hasAnyRole("FARMER", "SUPER_ADMIN")
                         .requestMatchers("/api/farmer/**").hasRole("SUPER_ADMIN")
                         .requestMatchers("/api/media/**").hasAnyRole("CONTENT_OPERATOR", "REVIEWER", "SUPER_ADMIN")
@@ -65,6 +67,11 @@ public class SecurityConfig {
                                 response, objectMapper, ErrorCode.ACCESS_DENIED, "当前账号无权访问")))
                 .addFilterBefore(authenticationFilter, AnonymousAuthenticationFilter.class);
         return http.build();
+    }
+
+    @Bean
+    PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
     }
 
     @Bean

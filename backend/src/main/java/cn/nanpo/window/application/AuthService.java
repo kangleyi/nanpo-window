@@ -5,12 +5,14 @@ import java.time.Instant;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import cn.nanpo.window.common.error.ApiException;
 import cn.nanpo.window.common.error.ErrorCode;
 import cn.nanpo.window.infrastructure.persistence.AuthRepository;
+import cn.nanpo.window.infrastructure.persistence.AuthRepository.PasswordAccount;
 import cn.nanpo.window.infrastructure.persistence.AuthRepository.RefreshSession;
 import cn.nanpo.window.security.AuthProperties;
 import cn.nanpo.window.security.TokenCodec;
@@ -19,47 +21,62 @@ import cn.nanpo.window.security.UserPrincipal;
 @Service
 public class AuthService {
 
-    private final SmsCodeService smsCodeService;
     private final AuthRepository repository;
     private final AuditService auditService;
     private final AuthProperties properties;
     private final TokenCodec tokenCodec;
+    private final PasswordEncoder passwordEncoder;
     private final Clock clock;
 
     @Autowired
     public AuthService(
-            SmsCodeService smsCodeService,
-            AuthRepository repository,
-            AuditService auditService,
-            AuthProperties properties,
-            TokenCodec tokenCodec) {
-        this(smsCodeService, repository, auditService, properties, tokenCodec, Clock.systemUTC());
-    }
-
-    AuthService(
-            SmsCodeService smsCodeService,
             AuthRepository repository,
             AuditService auditService,
             AuthProperties properties,
             TokenCodec tokenCodec,
+            PasswordEncoder passwordEncoder) {
+        this(repository, auditService, properties, tokenCodec, passwordEncoder, Clock.systemUTC());
+    }
+
+    AuthService(
+            AuthRepository repository,
+            AuditService auditService,
+            AuthProperties properties,
+            TokenCodec tokenCodec,
+            PasswordEncoder passwordEncoder,
             Clock clock) {
-        this.smsCodeService = smsCodeService;
         this.repository = repository;
         this.auditService = auditService;
         this.properties = properties;
         this.tokenCodec = tokenCodec;
+        this.passwordEncoder = passwordEncoder;
         this.clock = clock;
     }
 
-    public Instant sendCode(String phone) {
-        return smsCodeService.issue(phone);
+    @Transactional
+    public AuthTokens register(String phone, String password, String ipAddress) {
+        long userId;
+        try {
+            userId = repository.createCustomer(phone, passwordEncoder.encode(password));
+        } catch (DuplicateKeyException exception) {
+            throw new ApiException(ErrorCode.CONFLICT, "该手机号已注册，请直接登录");
+        }
+        UserPrincipal principal = repository.findActiveUserById(userId).orElseThrow();
+        AuthTokens tokens = createSession(principal);
+        repository.updateLastLogin(principal.id());
+        auditService.record(principal.id(), "AUTH_REGISTER", "USER_ACCOUNT", String.valueOf(principal.id()), ipAddress);
+        return tokens;
     }
 
     @Transactional
-    public AuthTokens login(String phone, String code, String ipAddress) {
-        smsCodeService.verify(phone, code);
-        UserPrincipal principal = repository.findActiveUserByPhone(phone)
-                .orElseGet(() -> createCustomer(phone));
+    public AuthTokens login(String phone, String password, String ipAddress) {
+        PasswordAccount account = repository.findActivePasswordAccountByPhone(phone)
+                .orElseThrow(this::invalidCredentials);
+        if (account.passwordHash() == null || !passwordEncoder.matches(password, account.passwordHash())) {
+            throw invalidCredentials();
+        }
+        UserPrincipal principal = repository.findActiveUserById(account.id())
+                .orElseThrow(this::invalidCredentials);
         AuthTokens tokens = createSession(principal);
         repository.updateLastLogin(principal.id());
         auditService.record(principal.id(), "AUTH_LOGIN", "USER_ACCOUNT", String.valueOf(principal.id()), ipAddress);
@@ -85,13 +102,8 @@ public class AuthService {
         auditService.record(principal.id(), "AUTH_LOGOUT", "USER_ACCOUNT", String.valueOf(principal.id()), ipAddress);
     }
 
-    private UserPrincipal createCustomer(String phone) {
-        try {
-            long userId = repository.createCustomer(phone);
-            return repository.findActiveUserById(userId).orElseThrow();
-        } catch (DuplicateKeyException exception) {
-            return repository.findActiveUserByPhone(phone).orElseThrow();
-        }
+    private ApiException invalidCredentials() {
+        return new ApiException(ErrorCode.AUTH_CREDENTIALS_INVALID, "手机号或密码错误");
     }
 
     private AuthTokens createSession(UserPrincipal principal) {

@@ -214,7 +214,7 @@ const nearbyPlans: Record<NearbyPlanId, NearbyPlan> = {
   },
 };
 
-export function PublicWindow({ onManage, onFarmer, onLogin }: { onManage: () => void; onFarmer: () => void; onLogin: () => void }) {
+export function PublicWindow({ onManage, onLogin }: { onManage: () => void; onLogin: () => void }) {
   const [routeType, setRouteType] = useState<RouteType>('drive');
   const [toast, setToast] = useState('');
   const [orderItem, setOrderItem] = useState<ProductCard | null>(null);
@@ -275,7 +275,7 @@ export function PublicWindow({ onManage, onFarmer, onLogin }: { onManage: () => 
       <header className="site-header">
         <a className="brand" href="#top"><span className="brand-seal">乡</span><span><b>乡见西村</b><small>DISCOVER XICUN</small></span></a>
         <nav aria-label="主要导航"><a href="#about">走进南坡</a><a href="#route">行前指南</a><a href="#nearby">特色周边游</a><a href="#experience">游玩采摘</a><a href="#stay">山居一晚</a><a href="#goods">山野好物</a></nav>
-        <div className="header-actions"><button className="weather" onClick={onLogin}>客户登录</button><button className="weather farmer-entry" onClick={onFarmer}>村民订单</button><button className="manage" onClick={onManage}>内容管理 ↗</button></div>
+        <div className="header-actions"><button className="weather" onClick={onLogin}>客户登录</button><button className="manage" onClick={onManage}>内容管理 ↗</button></div>
       </header>
 
       <section className="hero" id="top">
@@ -299,6 +299,7 @@ export function PublicWindow({ onManage, onFarmer, onLogin }: { onManage: () => 
         <a href="#stay"><span className="quick-no">02</span><div><small>STAY IN VILLAGE</small><b>住进山居院落</b></div><i>↗</i></a>
         <a href="#goods"><span className="quick-no">03</span><div><small>LOCAL HARVEST</small><b>把山野带回家</b></div><i>↗</i></a>
         <a href="#nearby"><span className="quick-no">04</span><div><small>FEATURED DAY TRIPS</small><b>特色周边游</b></div><i>↗</i></a>
+        <a href="#experience"><span className="quick-no">05</span><div><small>PLAY &amp; HARVEST</small><b>游玩采摘</b></div><i>↗</i></a>
       </section>
 
       <section className="about-section" id="about">
@@ -318,7 +319,6 @@ export function PublicWindow({ onManage, onFarmer, onLogin }: { onManage: () => 
           <div className="route-tabs"><button disabled={!routeMap.drive} className={routeType==='drive'?'active':''} onClick={() => setRouteType('drive')}>自驾前往</button><button disabled={!routeMap.rail} className={routeType==='rail'?'active':''} onClick={() => setRouteType('rail')}>高铁 + 打车</button><button disabled={!routeMap.taxi} className={routeType==='taxi'?'active':''} onClick={() => setRouteType('taxi')}>市区打车</button></div>
           {route ? <div className="route-content"><div className="route-summary"><small>RECOMMENDED ROUTE</small><h3>{route.title}</h3><strong>{route.time}</strong><p>{route.note}</p><button onClick={() => notify(`已复制目的地：${homeData.site.mapKeyword}`)}>复制目的地地址 ↗</button></div><div className="route-line">{route.steps.map((step,index)=><div key={step}><span>{index+1}</span><b>{step}</b>{index<route.steps.length-1&&<i/>}</div>)}</div><AmapLocationMap/></div> : <EmptyState label="出行路线"/>}
         </div>
-        <div className="travel-note"><span>出发提醒</span><p>山区叫车和道路情况可能临时变化；节假日建议提前预约车辆，确认返程安排，并优先选择白天进村。</p><button onClick={() => notify('行前提醒已保存')}>保存提醒</button></div>
       </section>
 
       <NearbyTravel notify={notify} spots={publicNearbySpots} plans={publicNearbyPlans} />
@@ -327,14 +327,12 @@ export function PublicWindow({ onManage, onFarmer, onLogin }: { onManage: () => 
         <div className="section-kicker light"><span>04</span><small>PLAY & HARVEST</small></div>
         <div className="experience-head"><div><span>跟着节气来玩</span><h2>不只看风景，<br/>也亲手参与一场收成。</h2></div><p>采摘、农耕、手作与村庄导览都可由后台持续上架；项目可配置季节、价格、名额、图集和视频。</p></div>
         {publicExperienceCards.length ? <><div className="experience-grid">{publicExperienceCards.slice((experiencePage-1)*experiencePageSize,experiencePage*experiencePageSize).map((item)=><article key={item.name}><div className="experience-media"><Image src={item.image} alt={item.name} fill sizes="33vw"/>{item.hasVideo?<button onClick={()=>setVideoItem(item)} aria-label={`播放${item.name}视频`}><i>▶</i><span>视频看现场</span></button>:<span className="photo-badge">图集</span>}<small>{item.season}</small></div><div className="experience-info"><span>{item.type} · {item.duration}</span><h3>{item.name}</h3><p>{item.desc}</p><footer><strong>{item.price}</strong><button disabled={!item.id} onClick={()=>item.id&&setInquiryTarget({sourceType:'EXPERIENCE',sourceId:item.id,name:item.name})}>留言咨询 →</button></footer></div></article>)}</div><Pagination page={experiencePage} total={publicExperienceCards.length} pageSize={experiencePageSize} onChange={setExperiencePage} label="游玩采摘项目" /></> : <EmptyState label="游玩采摘项目"/>}
-        <div className="experience-manage"><div><span>村庄运营方</span><h3>季节变了，项目也可以随时更新。</h3><p>后台可设置开放日期、每日名额、预约电话、封面图与介绍视频。</p></div><button onClick={onManage}>去后台配置项目 →</button></div>
       </section>
 
       <section className="stay-section" id="stay">
         <div className="section-kicker"><span>05</span><small>STAY IN NANPO</small></div>
         <div className="section-title-row"><div><span>在村里住一晚</span><h2>推开院门，听见山里的清晨。</h2></div><p>现有公开资料显示村内已建设多套山居民宿。以下房源内容为高保真示例，具体名称、价格与联系方式将在管理后台录入后公开。</p></div>
         {publicStayCards.length ? <><div className="stay-grid">{publicStayCards.slice((stayPage-1)*stayPageSize,stayPage*stayPageSize).map((item,index)=><article key={item.name}><div className="stay-image"><Image src={item.image} alt={item.name} fill sizes="33vw"/><span>{String((stayPage-1)*stayPageSize+index+1).padStart(2,'0')}</span><button onClick={() => notify(`${item.name}已加入收藏`)}>收藏 ♡</button></div><div className="stay-info"><small>{item.type}</small><h3>{item.name}</h3><p>{item.desc}</p><div><span>住 {item.beds}</span><strong>{item.price}</strong><span className="stay-actions">{item.externalUrl&&<a href={item.externalUrl} target="_blank" rel="noreferrer">民宿主页 ↗</a>}<button disabled={!item.id} onClick={()=>item.id&&setInquiryTarget({sourceType:'HOMESTAY',sourceId:item.id,name:item.name})}>留言咨询 →</button></span></div></div></article>)}</div><Pagination page={stayPage} total={publicStayCards.length} pageSize={stayPageSize} onChange={setStayPage} label="民宿" /></> : <EmptyState label="民宿"/>}
-        <div className="operator-cta"><div><span>你是南坡民宿经营者？</span><h3>把你的院子，也放进这扇窗。</h3></div><button onClick={onManage}>去后台上架房源 →</button></div>
       </section>
 
       <section className="goods-section" id="goods">
@@ -583,7 +581,6 @@ function NearbyTravel({ notify, spots, plans }: { notify: (message: string) => v
       </div>
     </div> : <EmptyState label="旅行规划"/>}
 
-    <div className="planning-disclaimer"><span>行前复核</span><p>山区道路、景区开放与观光车安排可能随天气和季节调整。建议出发前使用地图重新规划，并向景区或村庄服务点确认。</p><a href="https://wglj.jiaozuo.gov.cn/2026/08-04/610066.html" target="_blank" rel="noreferrer">查看焦作文旅推荐线路 ↗</a></div>
   </section>;
 }
 
