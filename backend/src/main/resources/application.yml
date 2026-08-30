@@ -38,6 +38,11 @@ springdoc:
     path: /api/openapi
 
 app:
+  ai:
+    zhipu:
+      api-key: ${ZHIPU_API_KEY:}
+      text-model: ${ZHIPU_TEXT_MODEL:glm-4-flash-250414}
+      vision-model: ${ZHIPU_VISION_MODEL:glm-4v-flash}
   auth:
     access-token-ttl: PT2H
     refresh-token-ttl: P30D

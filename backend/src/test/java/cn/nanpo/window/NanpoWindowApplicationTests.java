@@ -31,7 +31,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-@SpringBootTest(properties = "app.storage.type=local")
+@SpringBootTest(properties = {"app.storage.type=local", "app.ai.zhipu.api-key="})
 @AutoConfigureMockMvc
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -641,6 +641,57 @@ class NanpoWindowApplicationTests {
                 .andExpect(status().isOk())
                 .andExpect(header().string(HttpHeaders.CONTENT_TYPE, "image/png"))
                 .andExpect(content().bytes(image));
+    }
+
+    @Test
+    @Order(16)
+    void adminCanOptimizeMarketingCopyAndSeeImageAiAvailability() throws Exception {
+        String accessToken = login("13800000002").path("accessToken").asText();
+
+        mockMvc.perform(get("/api/admin/marketing-copy/status")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.configured").value(false))
+                .andExpect(jsonPath("$.data.provider").value("zhipu"));
+
+        mockMvc.perform(post("/api/admin/marketing-copy/optimize")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "productName": "太行山核桃",
+                                  "category": "坚果",
+                                  "originalCopy": "山里种植的核桃，风味朴实，适合日常分享。",
+                                  "sellingPoints": ["产地信息清晰", "风味朴实"],
+                                  "audience": "关注产地与品质的顾客",
+                                  "tone": "friendly",
+                                  "channel": "ecommerce",
+                                  "maxLength": 160,
+                                  "prohibitedTerms": ["全网最低"]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.headline").isNotEmpty())
+                .andExpect(jsonPath("$.data.optimizedCopy").value(org.hamcrest.Matchers.containsString("太行山核桃")))
+                .andExpect(jsonPath("$.data.sellingPoints.length()").value(2))
+                .andExpect(jsonPath("$.data.qualityReport.checks.contains_product_name").value(true))
+                .andExpect(jsonPath("$.data.meta.provider").value("local"));
+
+        mockMvc.perform(post("/api/admin/marketing-copy/from-image")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "imageDataUrl": "data:image/png;base64,iVBORw0KGgo=",
+                                  "audience": "关注产地与品质的顾客",
+                                  "tone": "friendly",
+                                  "channel": "ecommerce",
+                                  "maxLength": 160,
+                                  "prohibitedTerms": []
+                                }
+                                """))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("SERVICE_UNAVAILABLE"));
     }
 
     private JsonNode login(String phone) throws Exception {
