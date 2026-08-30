@@ -4,7 +4,7 @@ import { FarmRecordMedia, loadPublicHomeData, loadPublicProduct, ProductDetail, 
 import { createOrder, Order, reportOrderPayment } from './services/orderApi';
 import { InquirySource, submitConsultation } from './services/inquiryApi';
 import { CurrentUser, getCurrentUser, logout } from './services/authApi';
-import { withPageTimestamp } from './utils/cacheBust';
+import nanpoArchitectureCover from './assets/nanpo-architecture.png';
 
 type ImageProps = Omit<ImgHTMLAttributes<HTMLImageElement>, 'src'> & {
   src: string;
@@ -16,7 +16,7 @@ function Image({ fill, priority, style, ...props }: ImageProps) {
   return (
     <img
       {...props}
-      src={withPageTimestamp(props.src)}
+      src={props.src}
       loading={priority ? 'eager' : 'lazy'}
       style={
         fill
@@ -314,7 +314,7 @@ export function PublicWindow({ onManage, onLogin, onOrders }: { onManage: () => 
           <div className="hero-facts"><div><b>20<sup>km</sup></b><small>距焦作市区约</small></div><div><b>{homeData.site.recommendedSeason}</b><small>推荐到访季节</small></div><div><b>4<sup>处</sup></b><small>公共文化空间</small></div></div>
         </div>
         <div className="hero-visual">
-          <Image src="/images/nanpo-architecture.png" alt="大南坡村牌与太行山下的村庄景色" fill priority sizes="50vw" />
+          <Image src={nanpoArchitectureCover} alt="大南坡村牌与太行山下的村庄景色" fill priority sizes="50vw" />
           <div className="image-caption"><span>01</span><p>太行山下的大南坡村牌<br/><small>大南坡 · 西村乡</small></p></div>
           <div className="postcard"><b>太行山下</b><span>一座会生长的村庄</span><i>大南坡</i></div>
         </div>
@@ -440,7 +440,7 @@ function ProductImageGallery({ product, fallbackUrl }: { product: ProductDetail[
     </div>
     {images.length > 1 && <div className="product-detail-thumbnails" aria-label={`${product.name}图片列表`}>
       {images.map((url, index) => <button key={url} type="button" className={index === activeIndex ? 'active' : ''} onClick={() => setActiveIndex(index)} aria-label={`查看第${index + 1}张图片`} aria-pressed={index === activeIndex}>
-        <img src={withPageTimestamp(url)} alt=""/>
+        <img src={url} alt=""/>
       </button>)}
     </div>}
   </div>;
@@ -499,7 +499,7 @@ function InquiryModal({ target, onClose, onSuccess }: {
 }
 
 function VideoPreview({ item, onClose }: { item: ExperienceCard; onClose: () => void }) {
-  return <div className="modal-backdrop video-backdrop"><section className="video-modal"><header><div><small>FIELD VIDEO · 项目实拍</small><h2>{item.name}</h2></div><button onClick={onClose} aria-label="关闭视频">×</button></header><video controls playsInline preload="metadata" poster={withPageTimestamp(item.image)}><source src={withPageTimestamp(item.video)} type="video/mp4"/>您的浏览器暂不支持视频播放。</video><footer><div><span>{item.type}</span><strong>{item.season} · {item.duration}</strong></div><p>视频由后台审核发布，同时保留封面、标题与文字说明。</p></footer></section></div>;
+  return <div className="modal-backdrop video-backdrop"><section className="video-modal"><header><div><small>FIELD VIDEO · 项目实拍</small><h2>{item.name}</h2></div><button onClick={onClose} aria-label="关闭视频">×</button></header><video controls playsInline preload="metadata" poster={item.image}><source src={item.video} type="video/mp4"/>您的浏览器暂不支持视频播放。</video><footer><div><span>{item.type}</span><strong>{item.season} · {item.duration}</strong></div><p>视频由后台审核发布，同时保留封面、标题与文字说明。</p></footer></section></div>;
 }
 
 function NearbyTravel({ notify, spots, plans }: { notify: (message: string) => void; spots: NearbySpot[]; plans: Record<string, NearbyPlan> }) {
@@ -583,7 +583,7 @@ function NearbyTravel({ notify, spots, plans }: { notify: (message: string) => v
     </div>
 
     {spots.length ? <div className="nearby-carousel" onTouchStart={() => setSpotInteractionPaused(true)} onTouchEnd={() => setSpotInteractionPaused(false)} onFocusCapture={() => setSpotInteractionPaused(true)} onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setSpotInteractionPaused(false); }}>
-      <div className="nearby-carousel-toolbar"><span>每 3 秒自动切换，也可横向滑动</span><div><b aria-live="polite" aria-atomic="true">{spotPositionLabel}</b><button type="button" onClick={() => setSpotAutoplayEnabled((current) => !current)} aria-label={spotAutoplayEnabled ? '暂停自动轮播' : '继续自动轮播'}>{spotAutoplayEnabled ? 'Ⅱ' : '▶'}</button><button type="button" onClick={() => moveSpots(-1)} aria-label="上一组周边景点">上一组</button><button type="button" onClick={() => moveSpots(1)} aria-label="下一组周边景点">下一组</button></div></div>
+      <div className="nearby-carousel-toolbar"><span>每 3 秒自动切换，也可横向滑动</span><div><b aria-live="polite" aria-atomic="true">{spotPositionLabel}</b><button className="nearby-autoplay-toggle" type="button" onClick={() => setSpotAutoplayEnabled((current) => !current)} aria-label={spotAutoplayEnabled ? '暂停自动轮播' : '继续自动轮播'}>{spotAutoplayEnabled ? 'Ⅱ' : '▶'}</button><button type="button" onClick={() => moveSpots(-1)} aria-label="上一组周边景点">上一组</button><button type="button" onClick={() => moveSpots(1)} aria-label="下一组周边景点">下一组</button></div></div>
       <div className="nearby-spots" ref={spotCarouselRef} onScroll={syncSpotIndex} tabIndex={0} role="region" aria-roledescription="轮播" aria-label="特色周边景点" onKeyDown={(event) => { if (event.key === 'ArrowLeft') { event.preventDefault(); moveSpots(-1); } else if (event.key === 'ArrowRight') { event.preventDefault(); moveSpots(1); } }}>
         {spots.map((spot, index) => <article key={spot.name} className={`spot-card ${spot.tone}`}><Image className="spot-bg" src={spot.image} alt={`${spot.name}实景`} fill sizes="(max-width: 760px) 100vw, (max-width: 1050px) 50vw, 33vw" />
           <header><span>{spot.mark}</span><small>{String(index + 1).padStart(2, '0')} · {spot.type}</small></header>
@@ -665,7 +665,7 @@ const paymentQrCodes = [
 ];
 
 function PaymentQrOptions() {
-  return <div className="payment-qr-grid">{paymentQrCodes.map((code)=><article className={`payment-qr-card ${code.tone}`} key={code.name}><header><strong>{code.name}</strong><small>扫码完成转账</small></header><img src={withPageTimestamp(code.image)} alt={`${code.name}收款二维码`} loading="eager"/><a href={withPageTimestamp(code.image)} download={code.fileName} aria-label={`保存${code.name}收款码到手机`}>保存到手机</a></article>)}</div>;
+  return <div className="payment-qr-grid">{paymentQrCodes.map((code)=><article className={`payment-qr-card ${code.tone}`} key={code.name}><header><strong>{code.name}</strong><small>扫码完成转账</small></header><img src={code.image} alt={`${code.name}收款二维码`} loading="eager"/><a href={code.image} download={code.fileName} aria-label={`保存${code.name}收款码到手机`}>保存到手机</a></article>)}</div>;
 }
 
 function CheckoutFlow({ product, onClose, onLogin }: { product: ProductCard; onClose: () => void; onLogin: () => void }) {

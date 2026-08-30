@@ -78,7 +78,8 @@ class NanpoWindowApplicationTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.name").value("大南坡村"))
                 .andExpect(jsonPath("$.data.recommendedSeason").value("全年"))
-                .andExpect(jsonPath("$.data.visitorService.scene").value("VISITOR_SERVICE"));
+                .andExpect(jsonPath("$.data.visitorService.scene").value("VISITOR_SERVICE"))
+                .andExpect(jsonPath("$.data.visitorService.phone").value("13782746885"));
 
         mockMvc.perform(get("/api/public/products").param("page", "1").param("size", "20"))
                 .andExpect(status().isOk())
