@@ -11,7 +11,8 @@ export type Experience = { id: number; name: string; type: string; season: strin
 export type Product = { id: number; name: string; category: string; season: string; summary: string; coverUrl: string; imageUrls: string[]; startingPrice: number; farmerName: string; farmerId: number };
 export type Farmer = { id: number; code: string; name: string; villageGroup: string; introduction: string; certificationStatus: string };
 export type ProductSku = { id: number; code: string; specification: string; unitPrice: number; stockNote: string };
-export type FarmRecord = { id: number; stage: string; occurredAt: string; text: string; reviewedAt?: string; publishedAt?: string };
+export type FarmRecordMedia = { id: number; mediaType: 'IMAGE' | 'VIDEO' | 'AUDIO'; contentType: string; url: string };
+export type FarmRecord = { id: number; stage: string; occurredAt: string; text: string; reviewedAt?: string; publishedAt?: string; media: FarmRecordMedia[] };
 export type ProductDetail = { product: Product; farmer: Farmer; skus: ProductSku[]; productionRecords: FarmRecord[] };
 
 export type PublicHomeData = {

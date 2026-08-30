@@ -1,7 +1,8 @@
 package cn.nanpo.window.application;
 
 import java.time.Clock;
-import java.time.LocalDateTime;
+import java.time.Duration;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Set;
 
@@ -29,6 +30,7 @@ import cn.nanpo.window.security.UserPrincipal;
 @Service
 public class FarmerWorkspaceService {
 
+    private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Shanghai");
     private static final Set<String> REVIEW_STATUSES = Set.of(
             "ALL", "PENDING_REVIEW", "PUBLISHED", "REJECTED");
 
@@ -216,8 +218,9 @@ public class FarmerWorkspaceService {
         if (command.plotId() != null && !repository.ownsPlot(farmerId, command.plotId())) {
             throw new ApiException(ErrorCode.ACCESS_DENIED, "不能关联其他村民的地块");
         }
-        LocalDateTime latestAllowed = LocalDateTime.now(clock).plusMinutes(5);
-        if (command.occurredAt().isAfter(latestAllowed)) {
+        var latestAllowed = clock.instant().plus(Duration.ofMinutes(5));
+        var occurredAt = command.occurredAt().atZone(BUSINESS_ZONE).toInstant();
+        if (occurredAt.isAfter(latestAllowed)) {
             throw new ApiException(ErrorCode.INVALID_ARGUMENT, "生产时间不能晚于当前时间");
         }
     }

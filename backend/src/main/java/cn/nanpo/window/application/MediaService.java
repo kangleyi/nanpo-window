@@ -149,7 +149,8 @@ public class MediaService {
     public MediaContent publicContent(long id) {
         MediaRow media = repository.find(id)
                 .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND, "媒体不存在"));
-        if (!"READY".equals(media.status()) || repository.isRecordMedia(id)) {
+        boolean recordMedia = repository.isRecordMedia(id);
+        if (!"READY".equals(media.status()) || (recordMedia && !repository.isPublishedRecordMedia(id))) {
             throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND, "公开媒体不存在");
         }
         return new MediaContent(media.originalName(), media.contentType(), objectStorage.read(media.storageKey()));

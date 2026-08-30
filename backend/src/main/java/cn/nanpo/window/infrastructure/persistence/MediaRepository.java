@@ -68,6 +68,19 @@ public class MediaRepository {
                 .param("mediaId", mediaId).query(Long.class).single() > 0;
     }
 
+    public boolean isPublishedRecordMedia(long mediaId) {
+        return jdbc.sql("""
+                        SELECT COUNT(*)
+                        FROM record_media rm
+                        JOIN farm_record r ON r.id = rm.record_id
+                        WHERE rm.media_id = :mediaId
+                          AND r.status = 'PUBLISHED'
+                        """)
+                .param("mediaId", mediaId)
+                .query(Long.class)
+                .single() > 0;
+    }
+
     public Optional<MediaRow> find(long id) {
         return jdbc.sql("""
                         SELECT id, owner_user_id, media_type, storage_key, original_name, content_type,

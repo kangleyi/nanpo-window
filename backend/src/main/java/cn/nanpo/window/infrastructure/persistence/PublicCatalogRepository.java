@@ -17,6 +17,7 @@ import cn.nanpo.window.api.publiccontent.PublicViews.AttractionView;
 import cn.nanpo.window.api.publiccontent.PublicViews.ContactView;
 import cn.nanpo.window.api.publiccontent.PublicViews.GoodsSectionView;
 import cn.nanpo.window.api.publiccontent.PublicViews.ExperienceView;
+import cn.nanpo.window.api.publiccontent.PublicViews.FarmRecordMediaView;
 import cn.nanpo.window.api.publiccontent.PublicViews.FarmRecordView;
 import cn.nanpo.window.api.publiccontent.PublicViews.FarmerDetailView;
 import cn.nanpo.window.api.publiccontent.PublicViews.FarmerView;
@@ -298,7 +299,8 @@ public class PublicCatalogRepository {
                                 ? rs.getString("original_text")
                                 : rs.getString("confirmed_text"),
                         localDateTime(rs, "reviewed_at"),
-                        localDateTime(rs, "published_at")))
+                        localDateTime(rs, "published_at"),
+                        findRecordMedia(rs.getLong("id"))))
                 .list();
         return Optional.of(new ProductDetailView(summary, farmer, skus, records));
     }
@@ -361,6 +363,27 @@ public class PublicCatalogRepository {
                 .query(String.class)
                 .list();
         return images.isEmpty() ? List.of(coverUrl) : images;
+    }
+
+    private List<FarmRecordMediaView> findRecordMedia(long recordId) {
+        return jdbc.sql("""
+                        SELECT m.id, m.media_type, m.content_type
+                        FROM record_media rm
+                        JOIN media_asset m ON m.id = rm.media_id
+                        WHERE rm.record_id = :recordId
+                          AND m.status = 'READY'
+                        ORDER BY rm.sort_order, m.id
+                        """)
+                .param("recordId", recordId)
+                .query((rs, rowNum) -> {
+                    long mediaId = rs.getLong("id");
+                    return new FarmRecordMediaView(
+                            mediaId,
+                            rs.getString("media_type"),
+                            rs.getString("content_type"),
+                            "/api/public/media/" + mediaId + "/content");
+                })
+                .list();
     }
 
     private long count(String sql) {

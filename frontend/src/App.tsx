@@ -616,7 +616,13 @@ function ProductStory({ product, onClose, onBuy }: { product: ProductCard; onClo
       {!detail&&!error&&<div className="section-empty"><span className="state-spinner"/><h3>正在读取生产档案…</h3></div>}
       {error&&<div className="section-empty"><span>乡</span><h3>{error}</h3><button onClick={reload}>重新加载</button></div>}
       {detail&&records.length===0&&<EmptyState label="已公开生产记录"/>}
-      {records.map((record,index)=><article key={record.id}><div className="process-image"><Image src={product.image || '/images/products.jpg'} alt={stageNames[record.stage] || record.stage} fill sizes="150px"/></div><span>{String(index+1).padStart(2,'0')}</span><div><small>{dateLabel(record.occurredAt)}</small><h3>{stageNames[record.stage] || record.stage}</h3><p>{record.text}</p></div></article>)}
+      {records.map((record,index)=>{
+        const visualMedia = record.media?.find((media) => media.mediaType === 'IMAGE' || media.mediaType === 'VIDEO');
+        const audioMedia = record.media?.filter((media) => media.mediaType === 'AUDIO') ?? [];
+        return <article key={record.id}><div className="process-image">{visualMedia?.mediaType === 'VIDEO'
+          ? <video src={visualMedia.url} controls playsInline preload="metadata" aria-label={`${stageNames[record.stage] || record.stage}现场视频`}/>
+          : <Image src={visualMedia?.url || product.image || '/images/products.jpg'} alt={`${stageNames[record.stage] || record.stage}${visualMedia ? '现场图片' : '商品图片'}`} fill sizes="150px"/>}{visualMedia&&<em>{visualMedia.mediaType === 'VIDEO' ? '现场视频' : '现场图片'}</em>}</div><span>{String(index+1).padStart(2,'0')}</span><div><small>{dateLabel(record.occurredAt)}</small><h3>{stageNames[record.stage] || record.stage}</h3><p>{record.text}</p>{audioMedia.map((media)=><audio key={media.id} className="process-audio" src={media.url} controls preload="metadata" aria-label={`${stageNames[record.stage] || record.stage}现场录音`}/>)}</div></article>;
+      })}
     </div>
     <div className="story-actions"><p>{lastUpdated ? `最后发布：${fullDateLabel(lastUpdated)} · 共 ${records.length} 条已公开记录` : '暂无已公开记录'}</p><button onClick={onBuy}>信任这份收成，去购买 →</button></div></section></div>;
 }

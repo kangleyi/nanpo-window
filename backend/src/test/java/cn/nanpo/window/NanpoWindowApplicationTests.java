@@ -526,6 +526,82 @@ class NanpoWindowApplicationTests {
                 .andExpect(jsonPath("$.data.goodsSection.imageCaption").value("当季山野好物"));
     }
 
+    @Test
+    @Order(15)
+    void publishedProductionRecordExposesItsOwnMedia() throws Exception {
+        String adminToken = login("13800000002").path("accessToken").asText();
+        String recordBody = mockMvc.perform(post("/api/admin/farmers/1/records")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "productId": 1,
+                                  "plotId": 1,
+                                  "stage": "HARVEST",
+                                  "occurredAt": "2026-08-29T08:00:00",
+                                  "originalText": "现场记录核桃采摘过程。",
+                                  "truthConfirmed": true
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        long recordId = objectMapper.readTree(recordBody).path("data").path("id").asLong();
+
+        byte[] image = new byte[] {(byte) 0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a};
+        String checksum = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(image));
+        String ticketBody = mockMvc.perform(post("/api/media/upload-ticket")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "mediaType":"IMAGE",
+                                  "contentType":"image/png",
+                                  "sizeBytes":%d,
+                                  "originalName":"harvest.png",
+                                  "checksumSha256":"%s",
+                                  "recordId":%d
+                                }
+                                """.formatted(image.length, checksum, recordId)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        long mediaId = objectMapper.readTree(ticketBody).path("data").path("media").path("id").asLong();
+
+        mockMvc.perform(put("/api/media/{id}/content", mediaId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                        .content(image))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/media/{id}/complete", mediaId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("READY"));
+
+        mockMvc.perform(get("/api/public/media/{id}/content", mediaId))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(post("/api/admin/farmers/1/records/{recordId}/submit", recordId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/admin/reviews/records/{recordId}/approve", recordId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"confirmedText\":\"现场记录核桃采摘过程。\",\"reviewNote\":\"素材与记录一致\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("PUBLISHED"));
+
+        mockMvc.perform(get("/api/public/products/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.productionRecords[?(@.id == " + recordId + ")].media[0].id")
+                        .value(Math.toIntExact(mediaId)))
+                .andExpect(jsonPath("$.data.productionRecords[?(@.id == " + recordId + ")].media[0].mediaType").value("IMAGE"))
+                .andExpect(jsonPath("$.data.productionRecords[?(@.id == " + recordId + ")].media[0].url")
+                        .value("/api/public/media/" + mediaId + "/content"));
+        mockMvc.perform(get("/api/public/media/{id}/content", mediaId))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CONTENT_TYPE, "image/png"))
+                .andExpect(content().bytes(image));
+    }
+
     private JsonNode login(String phone) throws Exception {
         JsonNode existing = loginTokens.get(phone);
         if (existing != null) {

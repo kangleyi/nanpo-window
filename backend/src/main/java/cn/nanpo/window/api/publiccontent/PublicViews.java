@@ -136,7 +136,15 @@ public final class PublicViews {
             LocalDateTime occurredAt,
             String text,
             LocalDateTime reviewedAt,
-            LocalDateTime publishedAt) {
+            LocalDateTime publishedAt,
+            List<FarmRecordMediaView> media) {
+    }
+
+    public record FarmRecordMediaView(
+            long id,
+            String mediaType,
+            String contentType,
+            String url) {
     }
 
     public record ProductDetailView(
