@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   approveFarmRecord,
   confirmOrderPayment,
@@ -34,17 +34,36 @@ import {
 } from '../../services/adminApi';
 import { MediaUploadField } from '../../components/MediaUploadField';
 import { ProductImageUploadField } from '../../components/ProductImageUploadField';
+import type { ProductCoverSource } from '../../components/ProductImageUploadField';
 import { ApiError, openProtectedMedia } from '../../services/api';
 import { logout } from '../../services/authApi';
 import { FarmerProduct, FarmerProfile, FarmRecord, uploadRecordMedia } from '../../services/farmerApi';
+import {
+  generateMarketingCopyFromImage,
+  loadMarketingCopyStatus,
+  MarketingCopyResult,
+  optimizeMarketingCopy,
+  prepareMarketingImage,
+  SellingPointCandidate,
+} from '../../services/marketingCopyApi';
 import { Order } from '../../services/orderApi';
 
 type AdminSection = 'orders' | 'products' | 'reviews' | 'inquiries' | 'goodsSection' | ContentKind;
 type SkuDraft = { key: string; id?: number; code?: string; specification: string; unitPrice: string; stockNote: string };
+type ProductDraft = { name: string; category: string; season: string; summary: string };
+type ProductAiTask = 'optimize' | 'image' | null;
+type ProductAiSuggestion = { summary: string; productName: string; category: string };
 
 const emptySkuDraft = (): SkuDraft => ({
   key: crypto.randomUUID(), specification: '', unitPrice: '', stockNote: '',
 });
+
+const emptyProductDraft = (): ProductDraft => ({ name: '', category: '', season: '', summary: '' });
+
+const summaryFacts = (draft: ProductDraft) => Array.from(new Set([
+  draft.season.trim() ? `${draft.season.trim()}上市` : '',
+  ...draft.summary.split(/[\n，。；;,]/).map((item) => item.trim()),
+].filter(Boolean).map((item) => item.slice(0, 100)))).slice(0, 8);
 
 const orderStatusNames: Record<string, string> = {
   ALL: '全部状态', CREATED: '待付款', PAYMENT_REPORTED: '待核款', PAID: '待备货',
@@ -84,8 +103,21 @@ export function AdminConsolePage({ onExit }: { onExit: () => void }) {
   const [busy, setBusy] = useState(false);
   const [uploadsInProgress, setUploadsInProgress] = useState(0);
   const [skuDrafts, setSkuDrafts] = useState<SkuDraft[]>([emptySkuDraft()]);
+  const [productDraft, setProductDraft] = useState<ProductDraft>(emptyProductDraft);
+  const [productImageDataUrl, setProductImageDataUrl] = useState('');
+  const [productImageNote, setProductImageNote] = useState('');
+  const [productAiTask, setProductAiTask] = useState<ProductAiTask>(null);
+  const [productAiConfigured, setProductAiConfigured] = useState<boolean | null>(null);
+  const [productAiFeedback, setProductAiFeedback] = useState('');
+  const [productAiScore, setProductAiScore] = useState<number | null>(null);
+  const [productAiPoints, setProductAiPoints] = useState<string[]>([]);
+  const [productAiSuggestion, setProductAiSuggestion] = useState<ProductAiSuggestion | null>(null);
+  const [productAiCandidates, setProductAiCandidates] = useState<SellingPointCandidate[]>([]);
+  const [productAiSelectedPoints, setProductAiSelectedPoints] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
+  const productDraftRef = useRef(productDraft);
+  const productCoverPreparationId = useRef(0);
 
   const notify = (message: string) => {
     setToast(message);
@@ -131,10 +163,30 @@ export function AdminConsolePage({ onExit }: { onExit: () => void }) {
 
   useEffect(() => {
     if (!showProductForm) return;
+    const nextDraft = editingProduct ? {
+      name: editingProduct.name,
+      category: editingProduct.category,
+      season: editingProduct.season,
+      summary: editingProduct.summary,
+    } : emptyProductDraft();
+    productDraftRef.current = nextDraft;
+    setProductDraft(nextDraft);
     setSkuDrafts(editingProduct?.skus.filter((sku) => sku.enabled).map((sku) => ({
       key: crypto.randomUUID(), id: sku.id, code: sku.code, specification: sku.specification,
       unitPrice: String(sku.unitPrice), stockNote: sku.stockNote || '',
     })) || [emptySkuDraft()]);
+    setProductImageDataUrl('');
+    setProductImageNote(editingProduct?.coverUrl ? '如需识图重写，请重新选择这张封面图片' : '');
+    setProductAiFeedback('');
+    setProductAiScore(null);
+    setProductAiPoints([]);
+    setProductAiSuggestion(null);
+    setProductAiCandidates([]);
+    setProductAiSelectedPoints([]);
+    setProductAiTask(null);
+    loadMarketingCopyStatus()
+      .then((status) => setProductAiConfigured(status.configured))
+      .catch(() => setProductAiConfigured(null));
   }, [editingProduct, showProductForm]);
 
   const selectedFarmer = useMemo(
@@ -205,6 +257,176 @@ export function AdminConsolePage({ onExit }: { onExit: () => void }) {
     } finally { setBusy(false); }
   };
 
+  const updateProductField = (field: keyof ProductDraft, value: string) => {
+    setProductDraft((current) => {
+      const next = { ...current, [field]: value };
+      productDraftRef.current = next;
+      return next;
+    });
+    setProductAiScore(null);
+  };
+
+  const handleProductCoverChange = useCallback(async (cover: ProductCoverSource | null) => {
+    const preparationId = ++productCoverPreparationId.current;
+    setProductImageDataUrl('');
+    setProductAiFeedback('');
+    setProductAiScore(null);
+    setProductAiPoints([]);
+    setProductAiSuggestion(null);
+    setProductAiCandidates([]);
+    setProductAiSelectedPoints([]);
+    if (!cover) {
+      setProductImageNote('上传图片后，AI 仅识别首张封面，其他图片不参与');
+      return;
+    }
+    if (!cover.file) {
+      setProductImageNote('当前封面是已保存图片；如需重新识别，请上传新图片并将它移到首位');
+      return;
+    }
+    setProductImageNote('正在准备当前首张封面，其他图片不会参与识别…');
+    try {
+      const prepared = await prepareMarketingImage(cover.file);
+      if (preparationId !== productCoverPreparationId.current) return;
+      setProductImageDataUrl(prepared.dataUrl);
+      setProductImageNote(`当前首张封面已准备（${prepared.width}×${prepared.height}），其他图片不参与识别`);
+    } catch (reason) {
+      if (preparationId !== productCoverPreparationId.current) return;
+      setProductImageNote('');
+      setProductAiFeedback(reason instanceof Error ? reason.message : '图片处理失败');
+    }
+  }, []);
+
+  const applyProductAiResult = (result: MarketingCopyResult, fromImage: boolean) => {
+    const visual = result.visualAnalysis;
+    const candidates = result.sellingPointCandidates || [];
+    setProductAiCandidates(candidates);
+    setProductAiSelectedPoints([]);
+    setProductAiScore(result.qualityReport.score);
+    setProductAiPoints((candidates.length
+      ? candidates.filter((candidate) => !candidate.needsConfirmation).map((candidate) => candidate.text)
+      : visual?.detectedSellingPoints || result.sellingPoints).slice(0, 5));
+    if (fromImage && visual?.generationBlocked) {
+      setProductAiSuggestion(null);
+      setProductAiFeedback(visual.conflictMessage || '首张封面与商品信息不一致，请调整后重试');
+      return;
+    }
+    const current = productDraftRef.current;
+    const keepExistingSummary = fromImage && Boolean(current.summary.trim());
+    const next = {
+      name: fromImage && !current.name.trim() ? visual?.resolvedProductName || current.name : current.name,
+      category: fromImage && !current.category.trim() ? visual?.detectedCategory || current.category : current.category,
+      season: current.season,
+      summary: keepExistingSummary ? current.summary : result.optimizedCopy,
+    };
+    productDraftRef.current = next;
+    setProductDraft(next);
+    setProductAiSuggestion(keepExistingSummary ? {
+      summary: result.optimizedCopy,
+      productName: visual?.resolvedProductName || visual?.detectedProductName || '',
+      category: visual?.detectedCategory || '',
+    } : null);
+    if (!fromImage) {
+      setProductAiFeedback('已根据当前商品信息优化介绍，请人工确认后保存');
+      return;
+    }
+    const preservedFields = [
+      current.name.trim() ? '名称' : '',
+      current.category.trim() ? '分类' : '',
+      current.season.trim() ? '上市季节' : '',
+      current.summary.trim() ? '介绍' : '',
+    ].filter(Boolean);
+    const recognized = visual?.detectedProductName ? `“${visual.detectedProductName}”` : '封面信息';
+    const pendingCount = candidates.filter((candidate) => candidate.needsConfirmation).length;
+    const sellingPointNote = pendingCount ? `，另有 ${pendingCount} 个强卖点可确认后重新生成` : '';
+    setProductAiFeedback(keepExistingSummary
+      ? `已识别${recognized}；已保留人工填写的${preservedFields.join('、')}，AI 文案仅作为建议${sellingPointNote}`
+      : `已识别${recognized}；仅补齐空白字段，已有人工内容未改动${sellingPointNote}`);
+  };
+
+  const acceptProductAiSuggestion = () => {
+    if (!productAiSuggestion) return;
+    updateProductField('summary', productAiSuggestion.summary);
+    setProductAiSuggestion(null);
+    setProductAiFeedback('已按你的确认替换为 AI 建议文案，仍可继续编辑');
+  };
+
+  const optimizeProductSummary = async () => {
+    const facts = summaryFacts(productDraft);
+    if (!productDraft.name.trim() || !productDraft.summary.trim()) {
+      setProductAiFeedback('请先填写农产品名称和农产品介绍');
+      return;
+    }
+    setProductAiTask('optimize');
+    setProductAiFeedback('');
+    try {
+      const result = await optimizeMarketingCopy({
+        productName: productDraft.name.trim(),
+        category: productDraft.category.trim(),
+        originalCopy: productDraft.summary.trim(),
+        sellingPoints: facts,
+        audience: '关注产地与品质的顾客',
+        tone: 'friendly',
+        channel: 'ecommerce',
+        maxLength: 220,
+        prohibitedTerms: [],
+      });
+      applyProductAiResult(result, false);
+    } catch (reason) {
+      setProductAiFeedback(reason instanceof ApiError || reason instanceof Error ? reason.message : '文案优化失败');
+    } finally {
+      setProductAiTask(null);
+    }
+  };
+
+  const generateProductFromImage = async (confirmedSellingPoints: string[] = []) => {
+    if (!productImageDataUrl) {
+      setProductAiFeedback('请先选择并上传农产品封面图片');
+      return;
+    }
+    if (productAiConfigured === false) {
+      setProductAiFeedback('当前后端未配置图片识别服务');
+      return;
+    }
+    setProductAiTask('image');
+    setProductAiFeedback('');
+    try {
+      const result = await generateMarketingCopyFromImage({
+        imageDataUrl: productImageDataUrl,
+        productName: productDraft.name.trim(),
+        category: productDraft.category.trim(),
+        season: productDraft.season.trim(),
+        originalCopy: productDraft.summary.trim(),
+        confirmedFacts: summaryFacts(productDraft),
+        confirmedSellingPoints,
+        audience: '关注产地与品质的顾客',
+        visualHint: [productDraft.season.trim(), productDraft.summary.trim()].filter(Boolean).join('；'),
+        tone: 'friendly',
+        channel: 'ecommerce',
+        maxLength: 220,
+        prohibitedTerms: [],
+      });
+      applyProductAiResult(result, true);
+    } catch (reason) {
+      setProductAiFeedback(reason instanceof ApiError || reason instanceof Error ? reason.message : '图片识别失败');
+    } finally {
+      setProductAiTask(null);
+    }
+  };
+
+  const toggleProductAiPoint = (point: string) => {
+    setProductAiSelectedPoints((current) => current.includes(point)
+      ? current.filter((item) => item !== point)
+      : [...current, point]);
+  };
+
+  const regenerateWithConfirmedPoints = () => {
+    if (!productAiSelectedPoints.length) {
+      setProductAiFeedback('请先勾选至少一个你能确认属实的强卖点');
+      return;
+    }
+    void generateProductFromImage(productAiSelectedPoints);
+  };
+
   const saveProduct = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!selectedFarmerId) return;
@@ -223,8 +445,8 @@ export function AdminConsolePage({ onExit }: { onExit: () => void }) {
       const imageUrls = form.getAll('imageUrls').map(String).filter(Boolean);
       if (!imageUrls.length) throw new Error('请至少上传一张农产品图片');
       const command: ProductCommand = {
-        name: String(form.get('name')), category: String(form.get('category')),
-        season: String(form.get('season')), summary: String(form.get('summary')),
+        name: productDraft.name.trim(), category: productDraft.category.trim(),
+        season: productDraft.season.trim(), summary: productDraft.summary.trim(),
         coverUrl: imageUrls[0], imageUrls, skus,
       };
       setBusy(true);
@@ -480,10 +702,21 @@ export function AdminConsolePage({ onExit }: { onExit: () => void }) {
     </form></div>}
     {showProductForm&&<div className="modal-backdrop"><form className="content-form product-form" onSubmit={saveProduct}>
       <header><div><small>PRODUCT MANAGEMENT · {selectedFarmer?.name}</small><h2>{editingProduct?'维护':'新增'}农产品</h2></div><button type="button" onClick={()=>setShowProductForm(false)}>×</button></header>
-      <div className="form-grid"><label>农产品名称<input name="name" required maxLength={160} defaultValue={editingProduct?.name}/></label><label>分类<input name="category" required maxLength={100} defaultValue={editingProduct?.category}/></label></div>
-      <label>上市季节<input name="season" required maxLength={100} defaultValue={editingProduct?.season}/></label>
-      <label>农产品介绍<textarea name="summary" required maxLength={2000} defaultValue={editingProduct?.summary}/></label>
-      <ProductImageUploadField name="imageUrls" initialUrls={editingProduct?.imageUrls?.length ? editingProduct.imageUrls : editingProduct?.coverUrl ? [editingProduct.coverUrl] : []} onBusyChange={trackUpload}/>
+      <div className="product-ai-context"><div><b>AI 农产品营销助手</b><p>首图独立识别，先校验商品，再制造时令、场景和购买理由；强卖点由你确认后才能写入。</p></div><span>{productAiConfigured===true?'AI 识图可用':productAiConfigured===false?'识图服务待配置':'正在检查 AI'}</span></div>
+      <div className="form-grid"><label>农产品名称<input name="name" required maxLength={160} value={productDraft.name} onChange={(event)=>updateProductField('name',event.target.value)}/></label><label>分类<input name="category" required maxLength={100} value={productDraft.category} onChange={(event)=>updateProductField('category',event.target.value)}/></label></div>
+      <label>上市季节<input name="season" required maxLength={100} value={productDraft.season} onChange={(event)=>updateProductField('season',event.target.value)}/></label>
+      <section className="product-copy-assist">
+        <div className="product-field-heading"><label htmlFor="product-summary">农产品介绍 *</label><button type="button" disabled={productAiTask!==null} onClick={optimizeProductSummary}>{productAiTask==='optimize'?'正在优化…':'✦ AI 优化当前介绍'}</button></div>
+        <textarea id="product-summary" name="summary" required maxLength={2000} value={productDraft.summary} onChange={(event)=>updateProductField('summary',event.target.value)} placeholder="先写下真实的产地、采收、风味或加工信息，再让 AI 优化表达。"/>
+        <small>{productDraft.summary.length} / 2000 字 · 文案优化会回填；识图遇到已有介绍时只展示建议，不会自动覆盖</small>
+      </section>
+      <section className="product-image-assist">
+        <ProductImageUploadField name="imageUrls" initialUrls={editingProduct?.imageUrls?.length ? editingProduct.imageUrls : editingProduct?.coverUrl ? [editingProduct.coverUrl] : []} onBusyChange={trackUpload} onCoverChange={handleProductCoverChange}/>
+        <div className="product-image-ai-action"><div><b>用当前首张封面制造营销卖点</b><p>{productImageNote||'AI 只识别首张封面，校验商品后生成事实卖点、营销卖点和待确认强卖点。'}</p></div><button type="button" disabled={!productImageDataUrl||productAiTask!==null||productAiConfigured===false} onClick={()=>generateProductFromImage()}>{productAiTask==='image'?'正在识别并策划…':'✦ 识图并生成营销文案'}</button></div>
+      </section>
+      {(productAiFeedback||productAiScore!==null||productAiPoints.length>0)&&<div className="product-ai-feedback" role="status"><div><b>{productAiFeedback||'AI 处理完成'}</b>{productAiScore!==null&&<span>质量评分 {productAiScore}</span>}</div>{productAiPoints.length>0&&<p>已生成卖点：{productAiPoints.join('、')}</p>}</div>}
+      {productAiCandidates.length>0&&<section className="product-selling-points" aria-label="AI 卖点建议"><header><div><b>农产品卖点策划</b><small>画面事实与安全营销角度可直接使用；强卖点确认属实后再生成。</small></div><span>{productAiCandidates.filter((candidate)=>candidate.needsConfirmation).length} 个待确认</span></header><div className="product-selling-point-grid">{productAiCandidates.filter((candidate)=>!candidate.needsConfirmation).map((candidate)=><article className={candidate.kind} key={`${candidate.kind}-${candidate.text}`}><small>{candidate.kind==='fact'?'画面 / 人工事实':'营销卖点'} · {candidate.dimension}</small><b>{candidate.text}</b><p>{candidate.basis}</p></article>)}</div>{productAiCandidates.some((candidate)=>candidate.needsConfirmation)&&<><div className="product-selling-point-warning"><b>待确认强卖点</b><span>请只勾选你能确认属实的内容</span></div><div className="product-selling-point-checks">{productAiCandidates.filter((candidate)=>candidate.needsConfirmation).map((candidate)=><label key={`pending-${candidate.text}`}><input type="checkbox" checked={productAiSelectedPoints.includes(candidate.text)} onChange={()=>toggleProductAiPoint(candidate.text)}/><span><b>{candidate.text}</b><small>{candidate.basis}</small></span></label>)}</div><div className="product-selling-point-actions"><small>勾选后，模型会把这些强卖点作为人工确认事实重新组织文案。</small><button type="button" disabled={!productAiSelectedPoints.length||productAiTask!==null} onClick={regenerateWithConfirmedPoints}>{productAiTask==='image'?'正在重新生成…':`用已确认卖点重新生成（${productAiSelectedPoints.length}）`}</button></div></>}</section>}
+      {productAiSuggestion&&<section className="product-ai-suggestion" aria-label="AI 文案建议"><header><div><b>AI 建议文案（尚未写入）</b><small>{[productAiSuggestion.productName,productAiSuggestion.category].filter(Boolean).join(' · ')||'基于当前首张封面生成'}</small></div><span>人工内容已保留</span></header><p>{productAiSuggestion.summary}</p><div><button type="button" onClick={()=>setProductAiSuggestion(null)}>忽略建议</button><button className="primary" type="button" onClick={acceptProductAiSuggestion}>采用并替换当前介绍</button></div></section>}
       <fieldset className="sku-fields"><legend>可售规格</legend><div className="sku-field-head"><span>系统编码</span><span>规格名称</span><span>销售价（元）</span><span>库存说明</span><i/></div>{skuDrafts.map((sku,index)=><div className="sku-field-row" key={sku.key}><span className={`sku-generated-code ${sku.code?'ready':''}`}><small>系统编码</small>{sku.code||'保存后自动生成'}</span><label><span>规格名称</span><input aria-label={`第${index+1}条规格名称`} value={sku.specification} onChange={(event)=>setSkuDrafts((current)=>current.map((item)=>item.key===sku.key?{...item,specification:event.target.value}:item))} required maxLength={160} placeholder="如 500克/袋"/></label><label><span>销售价（元）</span><input aria-label={`第${index+1}条销售价`} value={sku.unitPrice} onChange={(event)=>setSkuDrafts((current)=>current.map((item)=>item.key===sku.key?{...item,unitPrice:event.target.value}:item))} required type="number" min="0.01" step="0.01" placeholder="29.90"/></label><label><span>库存说明</span><input aria-label={`第${index+1}条库存说明`} value={sku.stockNote} onChange={(event)=>setSkuDrafts((current)=>current.map((item)=>item.key===sku.key?{...item,stockNote:event.target.value}:item))} maxLength={200} placeholder="如 当季现货"/></label><button type="button" aria-label={`删除第${index+1}条规格`} disabled={skuDrafts.length===1} onClick={()=>setSkuDrafts((current)=>current.filter((item)=>item.key!==sku.key))}>删除</button></div>)}<button className="add-sku-button" type="button" onClick={()=>setSkuDrafts((current)=>[...current,emptySkuDraft()])}>＋ 添加一条规格</button><small>规格编码由后端统一生成；已有规格保留原编码，历史订单快照不受后续修改影响。</small></fieldset>
       <footer><button type="button" onClick={()=>setShowProductForm(false)}>取消</button><button className="primary" type="submit" disabled={busy||uploadsInProgress>0}>{uploadsInProgress>0?'正在上传…':busy?'正在保存…':'保存农产品'}</button></footer>
     </form></div>}
