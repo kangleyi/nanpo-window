@@ -133,7 +133,9 @@ public class FarmerWorkspaceRepository {
                         SELECT p.id, p.land_plot_id, p.name, p.category, p.season_text, p.summary,
                                p.cover_url, p.status, p.updated_at,
                                (SELECT COUNT(*) FROM farm_record r WHERE r.product_id = p.id) AS record_count
-                        FROM product p WHERE p.farmer_id = :farmerId ORDER BY p.sort_order, p.id
+                        FROM product p
+                        WHERE p.farmer_id = :farmerId
+                        ORDER BY p.updated_at DESC, p.id DESC
                         """)
                 .param("farmerId", farmerId)
                 .query((rs, rowNum) -> new ProductRow(

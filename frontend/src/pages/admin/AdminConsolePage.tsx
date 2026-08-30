@@ -53,6 +53,11 @@ const orderStatusNames: Record<string, string> = {
 
 const orderStatuses = Object.keys(orderStatusNames);
 
+const newestFirst = <T extends { id: number; updatedAt: string }>(items: T[]) => [...items].sort((left, right) => {
+  const timeDifference = Date.parse(right.updatedAt) - Date.parse(left.updatedAt);
+  return timeDifference || right.id - left.id;
+});
+
 export function AdminConsolePage({ onExit }: { onExit: () => void }) {
   const [section, setSection] = useState<AdminSection>('orders');
   const [items, setItems] = useState<ManagedContent[]>([]);
@@ -109,13 +114,13 @@ export function AdminConsolePage({ onExit }: { onExit: () => void }) {
         return;
       }
       loadFarmerProducts(selectedFarmerId)
-        .then(setProducts)
+        .then((data) => setProducts(newestFirst(data)))
         .catch((reason) => setError(reason instanceof ApiError ? reason.message : '农产品加载失败'));
     } else if (section === 'goodsSection') {
       loadGoodsSectionSettings().then(setGoodsSection)
         .catch((reason) => setError(reason instanceof ApiError ? reason.message : '好物版块配置加载失败'));
     } else {
-      loadManagedContent(section).then((page) => setItems(page.items))
+      loadManagedContent(section).then((page) => setItems(newestFirst(page.items)))
         .catch((reason) => setError(reason instanceof ApiError ? reason.message : '内容加载失败'));
     }
   }, [inquiryStatus, inquiryType, orderStatus, section, selectedFarmerId]);

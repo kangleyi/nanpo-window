@@ -44,7 +44,7 @@ public class ContentAdminRepository {
                                cover_url, consultation_phone, external_url, sort_order, status, published_at, updated_at
                         FROM homestay
                         WHERE (:status = 'ALL' OR status = :status)
-                        ORDER BY sort_order, id
+                        ORDER BY updated_at DESC, id DESC
                         LIMIT :limit OFFSET :offset
                         """)
                 .param("status", status)
@@ -170,7 +170,7 @@ public class ContentAdminRepository {
                                cover_url, video_url, booking_notes, sort_order, status, published_at, updated_at
                         FROM experience
                         WHERE (:status = 'ALL' OR status = :status)
-                        ORDER BY sort_order, id
+                        ORDER BY updated_at DESC, id DESC
                         LIMIT :limit OFFSET :offset
                         """)
                 .param("status", status)

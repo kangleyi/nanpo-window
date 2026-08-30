@@ -45,6 +45,7 @@ export type ManagedContent = {
   duration?: string;
   videoUrl?: string;
   bookingNotes?: string;
+  updatedAt: string;
 };
 
 export type ContentCommand = {

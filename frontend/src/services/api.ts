@@ -19,6 +19,11 @@ export class ApiError extends Error {
   }
 }
 
+function withRequestTimestamp(path: string): string {
+  const separator = path.includes('?') ? '&' : '?';
+  return `${path}${separator}_ts=${Date.now()}`;
+}
+
 export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   if (init?.body && !headers.has('Content-Type')) {
@@ -29,7 +34,13 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
     headers.set('Authorization', `Bearer ${accessToken}`);
   }
 
-  const response = await fetch(path, { ...init, headers });
+  const method = (init?.method || 'GET').toUpperCase();
+  const requestPath = method === 'GET' ? withRequestTimestamp(path) : path;
+  const response = await fetch(requestPath, {
+    ...init,
+    headers,
+    cache: method === 'GET' ? 'no-store' : init?.cache,
+  });
   const envelope = (await response.json().catch(() => null)) as ApiEnvelope<T> | null;
   if (!response.ok || !envelope) {
     throw new ApiError(

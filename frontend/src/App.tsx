@@ -3,6 +3,7 @@ import { ApiError } from './services/api';
 import { FarmRecordMedia, loadPublicHomeData, loadPublicProduct, ProductDetail, PublicHomeData } from './services/publicApi';
 import { createOrder, Order, reportOrderPayment } from './services/orderApi';
 import { InquirySource, submitConsultation } from './services/inquiryApi';
+import { withPageTimestamp } from './utils/cacheBust';
 
 type ImageProps = Omit<ImgHTMLAttributes<HTMLImageElement>, 'src'> & {
   src: string;
@@ -14,6 +15,7 @@ function Image({ fill, priority, style, ...props }: ImageProps) {
   return (
     <img
       {...props}
+      src={withPageTimestamp(props.src)}
       loading={priority ? 'eager' : 'lazy'}
       style={
         fill
@@ -413,7 +415,7 @@ function ProductImageGallery({ product, fallbackUrl }: { product: ProductDetail[
     </div>
     {images.length > 1 && <div className="product-detail-thumbnails" aria-label={`${product.name}图片列表`}>
       {images.map((url, index) => <button key={url} type="button" className={index === activeIndex ? 'active' : ''} onClick={() => setActiveIndex(index)} aria-label={`查看第${index + 1}张图片`} aria-pressed={index === activeIndex}>
-        <img src={url} alt=""/>
+        <img src={withPageTimestamp(url)} alt=""/>
       </button>)}
     </div>}
   </div>;
@@ -472,7 +474,7 @@ function InquiryModal({ target, onClose, onSuccess }: {
 }
 
 function VideoPreview({ item, onClose }: { item: ExperienceCard; onClose: () => void }) {
-  return <div className="modal-backdrop video-backdrop"><section className="video-modal"><header><div><small>FIELD VIDEO · 项目实拍</small><h2>{item.name}</h2></div><button onClick={onClose} aria-label="关闭视频">×</button></header><video controls playsInline preload="metadata" poster={item.image}><source src={item.video} type="video/mp4"/>您的浏览器暂不支持视频播放。</video><footer><div><span>{item.type}</span><strong>{item.season} · {item.duration}</strong></div><p>视频由后台审核发布，同时保留封面、标题与文字说明。</p></footer></section></div>;
+  return <div className="modal-backdrop video-backdrop"><section className="video-modal"><header><div><small>FIELD VIDEO · 项目实拍</small><h2>{item.name}</h2></div><button onClick={onClose} aria-label="关闭视频">×</button></header><video controls playsInline preload="metadata" poster={withPageTimestamp(item.image)}><source src={withPageTimestamp(item.video)} type="video/mp4"/>您的浏览器暂不支持视频播放。</video><footer><div><span>{item.type}</span><strong>{item.season} · {item.duration}</strong></div><p>视频由后台审核发布，同时保留封面、标题与文字说明。</p></footer></section></div>;
 }
 
 function NearbyTravel({ notify, spots, plans }: { notify: (message: string) => void; spots: NearbySpot[]; plans: Record<string, NearbyPlan> }) {
@@ -639,7 +641,7 @@ const paymentQrCodes = [
 ];
 
 function PaymentQrOptions() {
-  return <div className="payment-qr-grid">{paymentQrCodes.map((code)=><article className={`payment-qr-card ${code.tone}`} key={code.name}><header><strong>{code.name}</strong><small>扫码完成转账</small></header><img src={code.image} alt={`${code.name}收款二维码`} loading="eager"/><a href={code.image} download={code.fileName} aria-label={`保存${code.name}收款码到手机`}>↓ 保存到手机</a></article>)}</div>;
+  return <div className="payment-qr-grid">{paymentQrCodes.map((code)=><article className={`payment-qr-card ${code.tone}`} key={code.name}><header><strong>{code.name}</strong><small>扫码完成转账</small></header><img src={withPageTimestamp(code.image)} alt={`${code.name}收款二维码`} loading="eager"/><a href={withPageTimestamp(code.image)} download={code.fileName} aria-label={`保存${code.name}收款码到手机`}>↓ 保存到手机</a></article>)}</div>;
 }
 
 function CheckoutFlow({ product, onClose, onLogin }: { product: ProductCard; onClose: () => void; onLogin: () => void }) {
