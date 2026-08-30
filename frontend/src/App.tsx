@@ -1,6 +1,6 @@
 import { FormEvent, ImgHTMLAttributes, useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from './services/api';
-import { loadPublicHomeData, loadPublicProduct, ProductDetail, PublicHomeData } from './services/publicApi';
+import { FarmRecordMedia, loadPublicHomeData, loadPublicProduct, ProductDetail, PublicHomeData } from './services/publicApi';
 import { createOrder, Order, reportOrderPayment } from './services/orderApi';
 import { InquirySource, submitConsultation } from './services/inquiryApi';
 
@@ -281,7 +281,7 @@ export function PublicWindow({ onManage, onFarmer, onLogin }: { onManage: () => 
           <div className="location-line"><span>HENAN · JIAOZUO · XIUWU</span><i /></div>
           <h1>山在这里，<br/>风也在这里，<br/><em>日子慢下来。</em></h1>
           <p>{homeData.site.summary}</p>
-          <div className="hero-buttons"><button onClick={() => document.getElementById('route')?.scrollIntoView({behavior:'smooth'})}>规划我的南坡之行 <span>→</span></button><button className="play" onClick={() => notify('南坡声音故事即将上线')}>▶ <span>听一段南坡的声音</span></button></div>
+          <div className="hero-buttons"><button onClick={() => document.getElementById('route')?.scrollIntoView({behavior:'smooth'})}>规划我的南坡之行 <span>→</span></button></div>
           <div className="hero-facts"><div><b>20<sup>km</sup></b><small>距焦作市区约</small></div><div><b>{homeData.site.recommendedSeason}</b><small>推荐到访季节</small></div><div><b>4<sup>处</sup></b><small>公共文化空间</small></div></div>
         </div>
         <div className="hero-visual">
@@ -588,6 +588,7 @@ function NearbyTravel({ notify, spots, plans }: { notify: (message: string) => v
 function ProductStory({ product, onClose, onBuy }: { product: ProductCard; onClose: () => void; onBuy: () => void }) {
   const [detail, setDetail] = useState<ProductDetail | null>(null);
   const [error, setError] = useState('');
+  const [activeVideo, setActiveVideo] = useState<(FarmRecordMedia & { title: string }) | null>(null);
   const reload = useCallback(() => {
     if (!product.id) {
       setError('该农品还没有可公开的溯源编号');
@@ -619,12 +620,15 @@ function ProductStory({ product, onClose, onBuy }: { product: ProductCard; onClo
       {records.map((record,index)=>{
         const visualMedia = record.media?.find((media) => media.mediaType === 'IMAGE' || media.mediaType === 'VIDEO');
         const audioMedia = record.media?.filter((media) => media.mediaType === 'AUDIO') ?? [];
+        const videoTitle = `${stageNames[record.stage] || record.stage}现场视频`;
         return <article key={record.id}><div className="process-image">{visualMedia?.mediaType === 'VIDEO'
-          ? <video src={visualMedia.url} controls playsInline preload="metadata" aria-label={`${stageNames[record.stage] || record.stage}现场视频`}/>
+          ? <button type="button" className="process-video-trigger" onClick={()=>setActiveVideo({...visualMedia,title:videoTitle})} aria-label={`播放${videoTitle}`}><video src={visualMedia.url} muted playsInline preload="metadata"/><span aria-hidden="true">▶</span></button>
           : <Image src={visualMedia?.url || product.image || '/images/products.jpg'} alt={`${stageNames[record.stage] || record.stage}${visualMedia ? '现场图片' : '商品图片'}`} fill sizes="150px"/>}{visualMedia&&<em>{visualMedia.mediaType === 'VIDEO' ? '现场视频' : '现场图片'}</em>}</div><span>{String(index+1).padStart(2,'0')}</span><div><small>{dateLabel(record.occurredAt)}</small><h3>{stageNames[record.stage] || record.stage}</h3><p>{record.text}</p>{audioMedia.map((media)=><audio key={media.id} className="process-audio" src={media.url} controls preload="metadata" aria-label={`${stageNames[record.stage] || record.stage}现场录音`}/>)}</div></article>;
       })}
     </div>
-    <div className="story-actions"><p>{lastUpdated ? `最后发布：${fullDateLabel(lastUpdated)} · 共 ${records.length} 条已公开记录` : '暂无已公开记录'}</p><button onClick={onBuy}>信任这份收成，去购买 →</button></div></section></div>;
+    <div className="story-actions"><p>{lastUpdated ? `最后发布：${fullDateLabel(lastUpdated)} · 共 ${records.length} 条已公开记录` : '暂无已公开记录'}</p><button onClick={onBuy}>信任这份收成，去购买 →</button></div></section>
+    {activeVideo&&<div className="process-video-modal-backdrop" onClick={()=>setActiveVideo(null)}><section className="video-modal process-video-modal" role="dialog" aria-modal="true" aria-labelledby="process-video-title" onClick={(event)=>event.stopPropagation()}><header><div><small>FARM RECORD · 现场视频</small><h2 id="process-video-title">{activeVideo.title}</h2></div><button type="button" onClick={()=>setActiveVideo(null)} aria-label="关闭现场视频">×</button></header><video controls autoPlay playsInline preload="metadata"><source src={activeVideo.url} type={activeVideo.contentType}/>您的浏览器暂不支持视频播放。</video></section></div>}
+  </div>;
 }
 
 function DemoQr(){return <div className="demo-qr" aria-label="演示收款码，不可用于真实支付"><i/><i/><i/><i/><i/><i/><i/><i/><i/><i/><i/><i/><span>演示<br/>不可支付</span></div>}
