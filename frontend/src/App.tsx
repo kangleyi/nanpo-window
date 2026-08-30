@@ -285,8 +285,8 @@ export function PublicWindow({ onManage, onFarmer, onLogin }: { onManage: () => 
           <div className="hero-facts"><div><b>20<sup>km</sup></b><small>距焦作市区约</small></div><div><b>{homeData.site.recommendedSeason}</b><small>推荐到访季节</small></div><div><b>4<sup>处</sup></b><small>公共文化空间</small></div></div>
         </div>
         <div className="hero-visual">
-          <Image src="/images/nanpo-architecture.png" alt="乡见西村传统建筑与老树" fill priority sizes="50vw" />
-          <div className="image-caption"><span>01</span><p>旧日大队部的院落<br/><small>大南坡 · 西村乡</small></p></div>
+          <Image src="/images/nanpo-architecture.png" alt="大南坡村牌与太行山下的村庄景色" fill priority sizes="50vw" />
+          <div className="image-caption"><span>01</span><p>太行山下的大南坡村牌<br/><small>大南坡 · 西村乡</small></p></div>
           <div className="postcard"><b>太行山下</b><span>一座会生长的村庄</span><i>大南坡</i></div>
         </div>
         <aside className="hero-rail"><span>SCROLL TO EXPLORE</span><i /></aside>
