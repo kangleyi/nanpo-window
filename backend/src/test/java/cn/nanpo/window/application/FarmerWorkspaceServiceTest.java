@@ -18,6 +18,7 @@ import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import cn.nanpo.window.api.farmer.FarmerViews.FarmRecordCommand;
 import cn.nanpo.window.api.farmer.FarmerViews.FarmRecordView;
@@ -41,7 +42,8 @@ class FarmerWorkspaceServiceTest {
     void setUp() {
         FarmerWorkspaceRepository repository = mock(FarmerWorkspaceRepository.class);
         AuditService auditService = mock(AuditService.class);
-        service = new FarmerWorkspaceService(repository, auditService, UTC_SERVER_CLOCK);
+        PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
+        service = new FarmerWorkspaceService(repository, auditService, passwordEncoder, UTC_SERVER_CLOCK);
         actor = new UserPrincipal(2L, "13800000002", "村庄管理员", Set.of("SUPER_ADMIN"));
 
         when(repository.findFarmer(FARMER_ID)).thenReturn(Optional.of(new FarmerProfileView(

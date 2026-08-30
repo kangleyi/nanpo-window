@@ -39,7 +39,7 @@ npm --prefix frontend run dev
 - API 文档：`http://localhost:8080/api/docs`
 - OpenAPI JSON：`http://localhost:8080/api/openapi`
 
-本地开发短信码默认为 `123456`。种子账号为农户 `13800000001` 和超级管理员 `13800000002`。这些仅用于本地演示；`prod` profile 不会注册本地短信网关，上线前必须实现真实 `SmsGateway`。
+本地种子账号为农户 `13800000001` 和超级管理员 `13800000002`，默认密码均为 `12345678`。这些账号仅用于本地演示，正式环境请通过 `LOCAL_ACCOUNT_PASSWORD` 配置安全密码。
 
 开发、Docker 和生产环境默认都使用腾讯云 COS。项目启动时会自动读取根目录下未纳入版本控制的 `.env`；上传支持 JPEG、PNG、WebP、MP3、WAV、M4A/MP4 和 WebM，并按类型限制为 10MB、30MB 和 100MB。只有自动化测试会显式使用本地临时目录，避免测试访问云端。
 

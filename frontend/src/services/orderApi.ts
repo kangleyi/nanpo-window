@@ -27,6 +27,10 @@ export type Order = {
   items: OrderItem[];
 };
 
+export function loadCustomerOrders(): Promise<Order[]> {
+  return apiRequest<Order[]>('/api/customer/orders');
+}
+
 export function createOrder(command: {
   recipientName: string;
   recipientPhone: string;

@@ -14,6 +14,7 @@ import org.springframework.stereotype.Repository;
 
 import cn.nanpo.window.api.farmer.FarmerViews.FarmRecordCommand;
 import cn.nanpo.window.api.farmer.FarmerViews.FarmRecordView;
+import cn.nanpo.window.api.farmer.FarmerViews.FarmerCommand;
 import cn.nanpo.window.api.farmer.FarmerViews.FarmerDashboardView;
 import cn.nanpo.window.api.farmer.FarmerViews.FarmerProfileView;
 import cn.nanpo.window.api.farmer.FarmerViews.PlotCommand;
@@ -75,6 +76,41 @@ public class FarmerWorkspaceRepository {
                         rs.getString("village_group"), rs.getString("introduction"),
                         rs.getString("certification_status")))
                 .list();
+    }
+
+    public long createFarmer(FarmerCommand command, String passwordHash) {
+        GeneratedKeyHolder accountKeys = new GeneratedKeyHolder();
+        jdbcTemplate.update(connection -> {
+            PreparedStatement statement = connection.prepareStatement("""
+                    INSERT INTO user_account (phone, password_hash, display_name, status)
+                    VALUES (?, ?, ?, 'ACTIVE')
+                    """, new String[] { "id" });
+            statement.setString(1, command.phone().trim());
+            statement.setString(2, passwordHash);
+            statement.setString(3, command.name().trim());
+            return statement;
+        }, accountKeys);
+        long userId = accountKeys.getKey().longValue();
+        jdbc.sql("INSERT INTO user_role (user_id, role_code) VALUES (:userId, 'FARMER')")
+                .param("userId", userId)
+                .update();
+
+        GeneratedKeyHolder farmerKeys = new GeneratedKeyHolder();
+        jdbcTemplate.update(connection -> {
+            PreparedStatement statement = connection.prepareStatement("""
+                    INSERT INTO farmer_profile (
+                        user_id, farmer_code, name, village_group, introduction,
+                        certification_status, certified_at, status
+                    ) VALUES (?, ?, ?, ?, ?, 'APPROVED', CURRENT_TIMESTAMP, 'ACTIVE')
+                    """, new String[] { "id" });
+            statement.setLong(1, userId);
+            statement.setString(2, "NP-F-%03d".formatted(userId));
+            statement.setString(3, command.name().trim());
+            statement.setString(4, command.villageGroup().trim());
+            nullableString(statement, 5, command.introduction());
+            return statement;
+        }, farmerKeys);
+        return farmerKeys.getKey().longValue();
     }
 
     public FarmerDashboardView dashboard(FarmerProfileView farmer) {

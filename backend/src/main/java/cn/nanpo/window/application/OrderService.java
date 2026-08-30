@@ -134,6 +134,11 @@ public class OrderService {
                 .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND, "订单不存在"));
     }
 
+    @Transactional(readOnly = true)
+    public List<OrderView> customerOrders(UserPrincipal customer) {
+        return repository.findCustomerOrders(customer.id());
+    }
+
     @Transactional
     public OrderView reportPayment(
             String orderNo, String note, UserPrincipal customer, String ipAddress) {

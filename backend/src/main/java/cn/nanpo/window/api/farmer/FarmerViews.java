@@ -18,6 +18,13 @@ public final class FarmerViews {
     private FarmerViews() {
     }
 
+    public record FarmerCommand(
+            @NotBlank @Pattern(regexp = "1\\d{10}", message = "手机号格式不正确") String phone,
+            @NotBlank @Size(max = 100) String name,
+            @NotBlank @Size(max = 100) String villageGroup,
+            @Size(max = 2000) String introduction) {
+    }
+
     public record FarmerProfileView(
             long id,
             String code,
